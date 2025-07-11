@@ -18,6 +18,7 @@ apk: check_env
 	$(REPLACE_FILES) && \
 	$(FIX_BIGPICTURE) && \
 	cd apps/mobile_app && \
+	flutter pub run flutter_launcher_icons \
 	flutter build apk --release
 
 desktop-presence: check_env
