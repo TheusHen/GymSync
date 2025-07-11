@@ -1,4 +1,4 @@
-name: Build APK with Makefile
+name: Build APK with Makefile and Capture Preview
 
 on:
   push:
@@ -13,17 +13,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install dependencies for Flutter
+      - name: Install Flutter dependencies
         run: |
           sudo apt update && sudo apt install -y curl git unzip xz-utils zip libglu1-mesa libc6:amd64 libstdc++6:amd64 lib32z1 libbz2-1.0:amd64
 
-      - name: Download and setup Flutter
+      - name: Download and set up Flutter
         run: |
           curl -O https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_3.32.6-stable.tar.xz
           tar xf flutter_linux_3.32.6-stable.tar.xz
           echo "$(pwd)/flutter/bin" >> $GITHUB_PATH
 
-      - name: Setup Node.js
+      - name: Set up Node.js
         uses: actions/setup-node@v3
         with:
           node-version: '22'
@@ -35,10 +35,10 @@ jobs:
           node --version
           npm --version
 
-      - name: Install dependencies for Makefile
+      - name: Install Make
         run: sudo apt-get install make -y
 
-      - name: Run Makefile APK build
+      - name: Build APK with Makefile
         run: make apk
 
       - name: Upload APK artifact
@@ -46,3 +46,55 @@ jobs:
         with:
           name: app-release-apk
           path: apps/mobile_app/build/app/outputs/flutter-apk/app-release.apk
+
+  capture_preview:
+    needs: build_apk
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download APK artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: app-release-apk
+          path: ./apk/
+
+      - name: Start Android emulator and capture preview screenshots
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          target: default
+          arch: x86_64
+          profile: pixel
+          script: |
+            set -x
+            echo "Checking adb version and devices..."
+            adb version -v
+            adb devices -l
+
+            echo "Installing APK..."
+            adb install -v ./apk/app-release.apk
+
+            echo "Launching APK..."
+            adb shell monkey -v -p com.example.mobile_app -c android.intent.category.LAUNCHER 1
+
+            echo "Waiting for the app to load..."
+            sleep 10
+
+            echo "Capturing screenshots..."
+            mkdir -v previews
+            adb exec-out screencap -p > previews/screen1.png
+            sleep 2
+            adb exec-out screencap -p > previews/screen2.png
+            sleep 2
+            adb exec-out screencap -p > previews/screen3.png
+
+            echo "Compressing screenshots into a ZIP..."
+            zip -v -r preview_screenshots.zip previews/
+
+      - name: Upload screenshots artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: preview-screenshots
+          path: preview_screenshots.zip
