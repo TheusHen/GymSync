@@ -13,15 +13,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Flutter dependencies
+      - name: Install system dependencies
         run: |
-          sudo apt update && sudo apt install -y curl git unzip xz-utils zip libglu1-mesa libc6:amd64 libstdc++6:amd64 lib32z1 libbz2-1.0:amd64
+          sudo apt update
+          sudo apt install -y curl git unzip xz-utils zip make libglu1-mesa libc6:amd64 libstdc++6:amd64 lib32z1 libbz2-1.0:amd64
 
       - name: Download and set up Flutter
         run: |
           curl -O https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_3.32.6-stable.tar.xz
           tar xf flutter_linux_3.32.6-stable.tar.xz
-          echo "$(pwd)/flutter/bin" >> $GITHUB_PATH
+          echo "$PWD/flutter/bin" >> $GITHUB_PATH
+          export PATH="$PWD/flutter/bin:$PATH"
+          flutter --version
 
       - name: Set up Node.js
         uses: actions/setup-node@v3
@@ -34,9 +37,6 @@ jobs:
           dart --version
           node --version
           npm --version
-
-      - name: Install Make
-        run: sudo apt-get install make -y
 
       - name: Build APK with Makefile
         run: make apk
@@ -67,11 +67,10 @@ jobs:
           target: default
           arch: x86_64
           profile: pixel
+          disable-animations: true
           script: |
             set -x
-            adb version
-            adb devices -l
-
+            adb wait-for-device
             adb install ./apk/app-release.apk
             adb shell monkey -v -p com.example.mobile_app -c android.intent.category.LAUNCHER 1
 
@@ -79,14 +78,14 @@ jobs:
             sleep 10
 
             echo "Capturing screenshots..."
-            mkdir -v previews
+            mkdir -p previews
             adb exec-out screencap -p > previews/screen1.png
             sleep 2
             adb exec-out screencap -p > previews/screen2.png
             sleep 2
             adb exec-out screencap -p > previews/screen3.png
 
-            zip -v -r preview_screenshots.zip previews/
+            zip -r preview_screenshots.zip previews/
 
       - name: Upload screenshots artifact
         uses: actions/upload-artifact@v4
@@ -114,11 +113,10 @@ jobs:
           target: default
           arch: x86_64
           profile: pixel
+          disable-animations: true
           script: |
             set -x
-            adb version
-            adb devices -l
-
+            adb wait-for-device
             echo "Installing APK..."
             adb install ./apk/app-release.apk
 
