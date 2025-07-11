@@ -1,4 +1,4 @@
-name: Build APK with Makefile and Capture Preview
+name: Build APK with Makefile, Capture Preview and Run with Logs
 
 on:
   push:
@@ -69,14 +69,10 @@ jobs:
           profile: pixel
           script: |
             set -x
-            echo "Checking adb version and devices..."
-            adb version -v
+            adb version
             adb devices -l
 
-            echo "Installing APK..."
-            adb install -v ./apk/app-release.apk
-
-            echo "Launching APK..."
+            adb install ./apk/app-release.apk
             adb shell monkey -v -p com.example.mobile_app -c android.intent.category.LAUNCHER 1
 
             echo "Waiting for the app to load..."
@@ -90,7 +86,6 @@ jobs:
             sleep 2
             adb exec-out screencap -p > previews/screen3.png
 
-            echo "Compressing screenshots into a ZIP..."
             zip -v -r preview_screenshots.zip previews/
 
       - name: Upload screenshots artifact
@@ -98,3 +93,53 @@ jobs:
         with:
           name: preview-screenshots
           path: preview_screenshots.zip
+
+  run_apk_with_logs:
+    needs: build_apk
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download APK artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: app-release-apk
+          path: ./apk/
+
+      - name: Start Android emulator and run APK with live logcat
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          target: default
+          arch: x86_64
+          profile: pixel
+          script: |
+            set -x
+            adb version
+            adb devices -l
+
+            echo "Installing APK..."
+            adb install ./apk/app-release.apk
+
+            echo "Starting logcat in background..."
+            adb logcat -v time > live_logcat.txt &
+            LOGCAT_PID=$!
+
+            echo "Launching app..."
+            adb shell monkey -v -p com.example.mobile_app -c android.intent.category.LAUNCHER 1
+
+            echo "Letting it run for 15 seconds..."
+            sleep 15
+
+            echo "Stopping logcat..."
+            kill $LOGCAT_PID
+
+            echo "Showing last 50 lines of logcat output:"
+            tail -n 50 live_logcat.txt
+
+      - name: Upload logcat output
+        uses: actions/upload-artifact@v4
+        with:
+          name: live-logcat
+          path: live_logcat.txt
