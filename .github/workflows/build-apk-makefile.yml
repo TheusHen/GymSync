@@ -117,22 +117,23 @@ jobs:
           script: |
             set -x
             adb wait-for-device
+      
             echo "Installing APK..."
             adb install ./apk/app-release.apk
-
+      
             echo "Starting logcat in background..."
             adb logcat -v time > live_logcat.txt &
             LOGCAT_PID=$!
-
+      
             echo "Launching app..."
             adb shell monkey -v -p com.example.mobile_app -c android.intent.category.LAUNCHER 1
-
+      
             echo "Letting it run for 15 seconds..."
             sleep 15
-
+      
             echo "Stopping logcat..."
-            kill $LOGCAT_PID
-
+            kill $LOGCAT_PID || true
+      
             echo "Showing last 50 lines of logcat output:"
             tail -n 50 live_logcat.txt
 
