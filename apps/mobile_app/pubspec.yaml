@@ -57,9 +57,9 @@ dependencies:
   cupertino_icons: ^1.0.8
   device_info_plus: ^11.5.0
 
-flutter_icons:
+flutter_launcher_icons:
   android: true
-  ios: true
+  ios: false
   image_path: "assets/icon.png"
 
 dev_dependencies:
