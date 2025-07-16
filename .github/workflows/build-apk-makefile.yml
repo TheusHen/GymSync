@@ -1,4 +1,4 @@
-name: Build APK with Makefile, Capture Preview and Run with Logs
+name: Build APK with Makefile, Upload to BrowserStack App Automate and Collect Results
 
 on:
   push:
@@ -41,104 +41,103 @@ jobs:
       - name: Build APK with Makefile
         run: make apk
 
+      - name: Build androidTest APK
+        run: |
+          cd apps/mobile_app/android
+          ./gradlew assembleAndroidTest
+
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: app-release-apk
           path: apps/mobile_app/build/app/outputs/flutter-apk/app-release.apk
 
-  capture_preview:
+      - name: Upload androidTest APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-test-apk
+          path: apps/mobile_app/android/app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
+
+  browserstack_test:
     needs: build_apk
     runs-on: ubuntu-latest
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Download APK artifact
+      - name: Download APK artifacts
         uses: actions/download-artifact@v4
         with:
           name: app-release-apk
           path: ./apk/
 
-      - name: Start Android emulator and capture preview screenshots
-        uses: reactivecircus/android-emulator-runner@v2
+      - name: Download androidTest APK artifact
+        uses: actions/download-artifact@v4
         with:
-          api-level: 34
-          target: default
-          arch: arm64-v8a
-          profile: pixel
-          disable-animations: true
-          script: |
-            set -x
-            adb wait-for-device
-            adb install ./apk/app-release.apk
-            adb shell monkey -v -p com.example.mobile_app -c android.intent.category.LAUNCHER 1
+          name: app-test-apk
+          path: ./test_apk/
 
-            echo "Waiting for the app to load..."
+      - name: Upload app APK to BrowserStack
+        id: upload_app
+        run: |
+          APP_UPLOAD_RESPONSE=$(curl -u "${{ secrets.BROWSERSTACK_USERNAME }}:${{ secrets.BROWSERSTACK_ACCESS_KEY }}" \
+            -X POST "https://api-cloud.browserstack.com/app-automate/upload" \
+            -F "file=@./apk/app-release.apk")
+          APP_URL=$(echo $APP_UPLOAD_RESPONSE | python3 -c "import sys, json; print(json.load(sys.stdin)['app_url'])")
+          echo "APP_URL=$APP_URL" >> $GITHUB_ENV
+
+      - name: Upload test APK to BrowserStack
+        id: upload_test
+        run: |
+          TEST_UPLOAD_RESPONSE=$(curl -u "${{ secrets.BROWSERSTACK_USERNAME }}:${{ secrets.BROWSERSTACK_ACCESS_KEY }}" \
+            -X POST "https://api-cloud.browserstack.com/app-automate/upload" \
+            -F "file=@./test_apk/app-debug-androidTest.apk")
+          TEST_URL=$(echo $TEST_UPLOAD_RESPONSE | python3 -c "import sys, json; print(json.load(sys.stdin)['app_url'])")
+          echo "TEST_URL=$TEST_URL" >> $GITHUB_ENV
+
+      - name: Run Espresso test on BrowserStack
+        id: run_test
+        run: |
+          RUN_RESPONSE=$(curl -u "${{ secrets.BROWSERSTACK_USERNAME }}:${{ secrets.BROWSERSTACK_ACCESS_KEY }}" \
+            -X POST "https://api-cloud.browserstack.com/app-automate/espresso/v2/test-suite" \
+            -d "app=${APP_URL}" \
+            -d "testSuite=${TEST_URL}" \
+            -d "devices=[{\"device\":\"Google Pixel 7\",\"os_version\":\"13.0\"}]" \
+            -d "deviceLogs=true" \
+            -d "networkLogs=true")
+          BUILD_ID=$(echo $RUN_RESPONSE | python3 -c "import sys, json; print(json.load(sys.stdin)['build_id'])")
+          echo "BUILD_ID=$BUILD_ID" >> $GITHUB_ENV
+          echo "BrowserStack build id: $BUILD_ID"
+
+      - name: Wait for BrowserStack test completion
+        run: |
+          for i in {1..60}; do
+            STATUS_RESPONSE=$(curl -u "${{ secrets.BROWSERSTACK_USERNAME }}:${{ secrets.BROWSERSTACK_ACCESS_KEY }}" \
+              -X GET "https://api-cloud.browserstack.com/app-automate/espresso/v2/builds/${BUILD_ID}")
+            STATUS=$(echo $STATUS_RESPONSE | python3 -c "import sys, json; print(json.load(sys.stdin)['status'])")
+            echo "Current status: $STATUS"
+            if [ "$STATUS" = "done" ]; then
+              break
+            fi
             sleep 10
+          done
+          if [ "$STATUS" != "done" ]; then
+            echo "Test did not finish in expected time." && exit 1
+          fi
 
-            echo "Capturing screenshots..."
-            mkdir -p previews
-            adb exec-out screencap -p > previews/screen1.png
-            sleep 2
-            adb exec-out screencap -p > previews/screen2.png
-            sleep 2
-            adb exec-out screencap -p > previews/screen3.png
+      - name: Download BrowserStack test results
+        run: |
+          mkdir -p browserstack-results
+          # Get report URL
+          BUILD_INFO=$(curl -u "${{ secrets.BROWSERSTACK_USERNAME }}:${{ secrets.BROWSERSTACK_ACCESS_KEY }}" \
+            -X GET "https://api-cloud.browserstack.com/app-automate/espresso/v2/builds/${BUILD_ID}")
+          REPORT_URL=$(echo $BUILD_INFO | python3 -c "import sys, json; print(json.load(sys.stdin)['public_url'])")
+          echo "Test report: $REPORT_URL"
+          echo "Test report: $REPORT_URL" >> $GITHUB_STEP_SUMMARY
+          echo $REPORT_URL > browserstack-results/report_url.txt
 
-            zip -r preview_screenshots.zip previews/
-
-      - name: Upload screenshots artifact
+      - name: Upload BrowserStack results artifact
         uses: actions/upload-artifact@v4
         with:
-          name: preview-screenshots
-          path: preview_screenshots.zip
-
-  run_apk_with_logs:
-    needs: build_apk
-    runs-on: ubuntu-latest
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Download APK artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: app-release-apk
-          path: ./apk/
-
-      - name: Start Android emulator and run APK with live logcat
-        uses: reactivecircus/android-emulator-runner@v2
-        with:
-          api-level: 34
-          target: default
-          arch: arm64-v8a
-          profile: pixel
-          disable-animations: true
-          script: |
-            set -x
-            adb wait-for-device
-      
-            echo "Installing APK..."
-            adb install ./apk/app-release.apk
-      
-            echo "Starting logcat in background..."
-            adb logcat -v time > live_logcat.txt &
-            LOGCAT_PID=$!
-      
-            echo "Launching app..."
-            adb shell monkey -v -p com.example.mobile_app -c android.intent.category.LAUNCHER 1
-      
-            echo "Letting it run for 15 seconds..."
-            sleep 15
-      
-            echo "Stopping logcat..."
-            kill $LOGCAT_PID || true
-      
-            echo "Showing last 50 lines of logcat output:"
-            tail -n 50 live_logcat.txt
-
-      - name: Upload logcat output
-        uses: actions/upload-artifact@v4
-        with:
-          name: live-logcat
-          path: live_logcat.txt
+          name: browserstack-results
+          path: browserstack-results/
