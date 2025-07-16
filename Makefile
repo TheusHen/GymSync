@@ -1,5 +1,4 @@
 CHECK_ENV = dart run scripts/check_env.dart
-REPLACE_FILES = dart run scripts/replace_files.dart
 FIX_BIGPICTURE = dart run scripts/fix_bigpicture.dart
 
 .PHONY: all check_env apk desktop-presence
@@ -13,9 +12,7 @@ check_env:
 apk: check_env
 	cd apps/mobile_app && \
 	flutter pub get && \
-	flutter create . && \
 	cd ../../ && \
-	$(REPLACE_FILES) && \
 	$(FIX_BIGPICTURE) && \
 	cd apps/mobile_app && \
 	flutter pub run flutter_launcher_icons && \
