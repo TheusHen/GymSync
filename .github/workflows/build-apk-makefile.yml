@@ -65,7 +65,7 @@ jobs:
         with:
           api-level: 34
           target: default
-          arch: x86_64
+          arch: arm64-v8a
           profile: pixel
           disable-animations: true
           script: |
@@ -111,7 +111,7 @@ jobs:
         with:
           api-level: 34
           target: default
-          arch: x86_64
+          arch: arm64-v8a
           profile: pixel
           disable-animations: true
           script: |
