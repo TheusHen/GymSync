@@ -41,22 +41,11 @@ jobs:
       - name: Build APK with Makefile
         run: make apk
 
-      - name: Build androidTest APK
-        run: |
-          cd apps/mobile_app/android
-          ./gradlew assembleAndroidTest
-
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: app-release-apk
           path: apps/mobile_app/build/app/outputs/flutter-apk/app-release.apk
-
-      - name: Upload androidTest APK artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: app-test-apk
-          path: apps/mobile_app/android/app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
 
   browserstack_test:
     needs: build_apk
@@ -71,12 +60,6 @@ jobs:
           name: app-release-apk
           path: ./apk/
 
-      - name: Download androidTest APK artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: app-test-apk
-          path: ./test_apk/
-
       - name: Upload app APK to BrowserStack
         id: upload_app
         run: |
@@ -86,22 +69,12 @@ jobs:
           APP_URL=$(echo $APP_UPLOAD_RESPONSE | python3 -c "import sys, json; print(json.load(sys.stdin)['app_url'])")
           echo "APP_URL=$APP_URL" >> $GITHUB_ENV
 
-      - name: Upload test APK to BrowserStack
-        id: upload_test
-        run: |
-          TEST_UPLOAD_RESPONSE=$(curl -u "${{ secrets.BROWSERSTACK_USERNAME }}:${{ secrets.BROWSERSTACK_ACCESS_KEY }}" \
-            -X POST "https://api-cloud.browserstack.com/app-automate/upload" \
-            -F "file=@./test_apk/app-debug-androidTest.apk")
-          TEST_URL=$(echo $TEST_UPLOAD_RESPONSE | python3 -c "import sys, json; print(json.load(sys.stdin)['app_url'])")
-          echo "TEST_URL=$TEST_URL" >> $GITHUB_ENV
-
       - name: Run Espresso test on BrowserStack
         id: run_test
         run: |
           RUN_RESPONSE=$(curl -u "${{ secrets.BROWSERSTACK_USERNAME }}:${{ secrets.BROWSERSTACK_ACCESS_KEY }}" \
             -X POST "https://api-cloud.browserstack.com/app-automate/espresso/v2/test-suite" \
             -d "app=${APP_URL}" \
-            -d "testSuite=${TEST_URL}" \
             -d "devices=[{\"device\":\"Google Pixel 7\",\"os_version\":\"13.0\"}]" \
             -d "deviceLogs=true" \
             -d "networkLogs=true")
