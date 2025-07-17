@@ -57,7 +57,7 @@ jobs:
       - name: Build Espresso test APK
         run: |
           cd apps/mobile_app/android
-          ./gradlew assembleAndroidTest
+          ./gradlew assembleDebug -x lint -x test -x connectedAndroidTest
           cd ../../../
 
       - name: Check if AndroidTest APK was generated

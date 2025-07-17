@@ -51,6 +51,8 @@ android {
     sourceSets {
         getByName("androidTest") {
             manifest.srcFile("src/main/AndroidManifest.xml")
+            res.srcDirs("src/main/res")
+            assets.srcDirs("src/main/assets")
         }
     }
 
