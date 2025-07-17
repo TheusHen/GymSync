@@ -65,6 +65,17 @@ android {
     }
 }
 
+// Força minSdkVersion do plugin flutter_background (e outros, se necessário)
+subprojects {
+    afterEvaluate {
+        if (project.name == "flutter_background") {
+            extensions.findByType<com.android.build.gradle.LibraryExtension>()?.let { ext ->
+                ext.defaultConfig.minSdk = 26
+            }
+        }
+    }
+}
+
 flutter {
     source = "../.."
 }
