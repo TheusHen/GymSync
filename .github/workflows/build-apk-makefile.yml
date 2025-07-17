@@ -60,19 +60,27 @@ jobs:
           name: app-release-apk
           path: ./apk/
 
+      - name: List APKs for debug
+        run: ls -lh ./apk
+
       - name: Upload app APK to BrowserStack
         id: upload_app
         run: |
-          APP_UPLOAD_RESPONSE=$(curl -u "${{ secrets.BROWSERSTACK_USERNAME }}:${{ secrets.BROWSERSTACK_ACCESS_KEY }}" \
+          APP_UPLOAD_RESPONSE=$(curl -s -u "${{ secrets.BROWSERSTACK_USERNAME }}:${{ secrets.BROWSERSTACK_ACCESS_KEY }}" \
             -X POST "https://api-cloud.browserstack.com/app-automate/upload" \
             -F "file=@./apk/app-release.apk")
-          APP_URL=$(echo $APP_UPLOAD_RESPONSE | python3 -c "import sys, json; print(json.load(sys.stdin)['app_url'])")
+          echo "APP_UPLOAD_RESPONSE: $APP_UPLOAD_RESPONSE"
+          APP_URL=$(echo $APP_UPLOAD_RESPONSE | python3 -c "import sys, json; d=json.load(sys.stdin); print(d.get('app_url', ''))")
+          if [ -z "$APP_URL" ]; then
+            echo "Failed to get app_url from BrowserStack response."
+            exit 1
+          fi
           echo "APP_URL=$APP_URL" >> $GITHUB_ENV
 
       - name: Run Espresso test on BrowserStack
         id: run_test
         run: |
-          RUN_RESPONSE=$(curl -u "${{ secrets.BROWSERSTACK_USERNAME }}:${{ secrets.BROWSERSTACK_ACCESS_KEY }}" \
+          RUN_RESPONSE=$(curl -s -u "${{ secrets.BROWSERSTACK_USERNAME }}:${{ secrets.BROWSERSTACK_ACCESS_KEY }}" \
             -X POST "https://api-cloud.browserstack.com/app-automate/espresso/v2/test-suite" \
             -d "app=${APP_URL}" \
             -d "devices=[{\"device\":\"Google Pixel 7\",\"os_version\":\"13.0\"}]" \
@@ -90,9 +98,9 @@ jobs:
       - name: Wait for BrowserStack test completion
         run: |
           for i in {1..60}; do
-            STATUS_RESPONSE=$(curl -u "${{ secrets.BROWSERSTACK_USERNAME }}:${{ secrets.BROWSERSTACK_ACCESS_KEY }}" \
+            STATUS_RESPONSE=$(curl -s -u "${{ secrets.BROWSERSTACK_USERNAME }}:${{ secrets.BROWSERSTACK_ACCESS_KEY }}" \
               -X GET "https://api-cloud.browserstack.com/app-automate/espresso/v2/builds/${BUILD_ID}")
-            STATUS=$(echo $STATUS_RESPONSE | python3 -c "import sys, json; print(json.load(sys.stdin)['status'])")
+            STATUS=$(echo $STATUS_RESPONSE | python3 -c "import sys, json; print(json.load(sys.stdin).get('status', ''))")
             echo "Current status: $STATUS"
             if [ "$STATUS" = "done" ]; then
               break
@@ -107,9 +115,9 @@ jobs:
         run: |
           mkdir -p browserstack-results
           # Get report URL
-          BUILD_INFO=$(curl -u "${{ secrets.BROWSERSTACK_USERNAME }}:${{ secrets.BROWSERSTACK_ACCESS_KEY }}" \
+          BUILD_INFO=$(curl -s -u "${{ secrets.BROWSERSTACK_USERNAME }}:${{ secrets.BROWSERSTACK_ACCESS_KEY }}" \
             -X GET "https://api-cloud.browserstack.com/app-automate/espresso/v2/builds/${BUILD_ID}")
-          REPORT_URL=$(echo $BUILD_INFO | python3 -c "import sys, json; print(json.load(sys.stdin)['public_url'])")
+          REPORT_URL=$(echo $BUILD_INFO | python3 -c "import sys, json; print(json.load(sys.stdin).get('public_url', ''))")
           echo "Test report: $REPORT_URL"
           echo "Test report: $REPORT_URL" >> $GITHUB_STEP_SUMMARY
           echo $REPORT_URL > browserstack-results/report_url.txt
