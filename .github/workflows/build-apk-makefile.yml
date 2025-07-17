@@ -78,7 +78,12 @@ jobs:
             -d "devices=[{\"device\":\"Google Pixel 7\",\"os_version\":\"13.0\"}]" \
             -d "deviceLogs=true" \
             -d "networkLogs=true")
-          BUILD_ID=$(echo $RUN_RESPONSE | python3 -c "import sys, json; print(json.load(sys.stdin)['build_id'])")
+          echo "RUN_RESPONSE: $RUN_RESPONSE"
+          BUILD_ID=$(echo $RUN_RESPONSE | python3 -c "import sys, json; d=json.load(sys.stdin); print(d.get('build_id', ''))")
+          if [ -z "$BUILD_ID" ]; then
+            echo "Failed to get build_id from BrowserStack response."
+            exit 1
+          fi
           echo "BUILD_ID=$BUILD_ID" >> $GITHUB_ENV
           echo "BrowserStack build id: $BUILD_ID"
 
