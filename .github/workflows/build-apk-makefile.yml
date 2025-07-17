@@ -89,12 +89,13 @@ jobs:
             -X POST "https://api-cloud.browserstack.com/app-automate/upload" \
             -F "file=@./apk/app-release.apk")
           echo "APP_UPLOAD_RESPONSE: $APP_UPLOAD_RESPONSE"
-          APP_URL=$(echo $APP_UPLOAD_RESPONSE | python3 -c "import sys, json; d=json.load(sys.stdin); print(d.get('app_url', ''))")
+          APP_URL=$(echo "$APP_UPLOAD_RESPONSE" | python3 -c "import sys, json; d=json.load(sys.stdin); print(d.get('app_url', ''))")
           if [ -z "$APP_URL" ]; then
-            echo "Failed to get app_url from BrowserStack response."
+            echo "Failed to get app_url from BrowserStack response. Response: $APP_UPLOAD_RESPONSE"
             exit 1
           fi
           echo "APP_URL=$APP_URL" | tee -a $GITHUB_ENV
+          echo "::set-output name=app_url::$APP_URL"
 
       - name: Run Espresso test on BrowserStack
         id: run_test
@@ -105,6 +106,10 @@ jobs:
         run: |
           set -e
           echo "Running Espresso test on BrowserStack..."
+          if [ -z "$APP_URL" ]; then
+            echo "APP_URL is not set!"
+            exit 1
+          fi
           RUN_RESPONSE=$(curl -s -u "${BROWSERSTACK_USERNAME}:${BROWSERSTACK_ACCESS_KEY}" \
             -X POST "https://api-cloud.browserstack.com/app-automate/espresso/v2/test-suite" \
             -d "app=$APP_URL" \
@@ -112,12 +117,13 @@ jobs:
             -d "deviceLogs=true" \
             -d "networkLogs=true")
           echo "RUN_RESPONSE: $RUN_RESPONSE"
-          BUILD_ID=$(echo $RUN_RESPONSE | python3 -c "import sys, json; d=json.load(sys.stdin); print(d.get('build_id', ''))")
+          BUILD_ID=$(echo "$RUN_RESPONSE" | python3 -c "import sys, json; d=json.load(sys.stdin); print(d.get('build_id', ''))")
           if [ -z "$BUILD_ID" ]; then
-            echo "Failed to get build_id from BrowserStack response."
+            echo "Failed to get build_id from BrowserStack response. Response: $RUN_RESPONSE"
             exit 1
           fi
           echo "BUILD_ID=$BUILD_ID" | tee -a $GITHUB_ENV
+          echo "::set-output name=build_id::$BUILD_ID"
           echo "BrowserStack build id: $BUILD_ID"
 
       - name: Wait for BrowserStack test completion
@@ -131,7 +137,7 @@ jobs:
           for i in {1..60}; do
             STATUS_RESPONSE=$(curl -s -u "${BROWSERSTACK_USERNAME}:${BROWSERSTACK_ACCESS_KEY}" \
               -X GET "https://api-cloud.browserstack.com/app-automate/espresso/v2/builds/${BUILD_ID}")
-            STATUS=$(echo $STATUS_RESPONSE | python3 -c "import sys, json; print(json.load(sys.stdin).get('status', ''))")
+            STATUS=$(echo "$STATUS_RESPONSE" | python3 -c "import sys, json; print(json.load(sys.stdin).get('status', ''))")
             echo "Current status: $STATUS"
             if [ "$STATUS" = "done" ]; then
               break
@@ -153,7 +159,7 @@ jobs:
           mkdir -p browserstack-results
           BUILD_INFO=$(curl -s -u "${BROWSERSTACK_USERNAME}:${BROWSERSTACK_ACCESS_KEY}" \
             -X GET "https://api-cloud.browserstack.com/app-automate/espresso/v2/builds/${BUILD_ID}")
-          REPORT_URL=$(echo $BUILD_INFO | python3 -c "import sys, json; print(json.load(sys.stdin).get('public_url', ''))")
+          REPORT_URL=$(echo "$BUILD_INFO" | python3 -c "import sys, json; print(json.load(sys.stdin).get('public_url', ''))")
           echo "Test report: $REPORT_URL"
           echo "Test report: $REPORT_URL" >> $GITHUB_STEP_SUMMARY
           echo $REPORT_URL > browserstack-results/report_url.txt
