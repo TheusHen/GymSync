@@ -11,7 +11,8 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
       - name: Install system dependencies
         run: |
@@ -41,6 +42,13 @@ jobs:
       - name: Build APK with Makefile
         run: make apk
 
+      - name: Check if APK was generated
+        run: |
+          if [ ! -f apps/mobile_app/build/app/outputs/flutter-apk/app-release.apk ]; then
+            echo "APK not found!"
+            exit 1
+          fi
+
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
@@ -52,38 +60,54 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-      - name: Download APK artifacts
+      - name: Download APK artifact
         uses: actions/download-artifact@v4
         with:
           name: app-release-apk
           path: ./apk/
 
-      - name: List APKs for debug
-        run: ls -lh ./apk
+      - name: Verify APK artifact
+        run: |
+          ls -lh ./apk
+          if [ ! -f ./apk/app-release.apk ]; then
+            echo "APK artifact not found after download!"
+            exit 1
+          fi
 
       - name: Upload app APK to BrowserStack
         id: upload_app
+        env:
+          BROWSERSTACK_USERNAME: ${{ secrets.BROWSERSTACK_USERNAME }}
+          BROWSERSTACK_ACCESS_KEY: ${{ secrets.BROWSERSTACK_ACCESS_KEY }}
         run: |
-          ls -lh apps/mobile_app/build/app/outputs/flutter-apk/
-          APP_UPLOAD_RESPONSE=$(curl -s -u "${{ secrets.BROWSERSTACK_USERNAME }}:${{ secrets.BROWSERSTACK_ACCESS_KEY }}" \
+          set -e
+          echo "Uploading APK to BrowserStack..."
+          APP_UPLOAD_RESPONSE=$(curl -s -u "${BROWSERSTACK_USERNAME}:${BROWSERSTACK_ACCESS_KEY}" \
             -X POST "https://api-cloud.browserstack.com/app-automate/upload" \
-            -F "file=@apps/mobile_app/build/app/outputs/flutter-apk/app-release.apk")
+            -F "file=@./apk/app-release.apk")
           echo "APP_UPLOAD_RESPONSE: $APP_UPLOAD_RESPONSE"
           APP_URL=$(echo $APP_UPLOAD_RESPONSE | python3 -c "import sys, json; d=json.load(sys.stdin); print(d.get('app_url', ''))")
           if [ -z "$APP_URL" ]; then
             echo "Failed to get app_url from BrowserStack response."
             exit 1
           fi
-          echo "APP_URL=$APP_URL" >> $GITHUB_ENV
+          echo "APP_URL=$APP_URL" | tee -a $GITHUB_ENV
 
       - name: Run Espresso test on BrowserStack
         id: run_test
+        env:
+          BROWSERSTACK_USERNAME: ${{ secrets.BROWSERSTACK_USERNAME }}
+          BROWSERSTACK_ACCESS_KEY: ${{ secrets.BROWSERSTACK_ACCESS_KEY }}
+          APP_URL: ${{ env.APP_URL }}
         run: |
-          RUN_RESPONSE=$(curl -s -u "${{ secrets.BROWSERSTACK_USERNAME }}:${{ secrets.BROWSERSTACK_ACCESS_KEY }}" \
+          set -e
+          echo "Running Espresso test on BrowserStack..."
+          RUN_RESPONSE=$(curl -s -u "${BROWSERSTACK_USERNAME}:${BROWSERSTACK_ACCESS_KEY}" \
             -X POST "https://api-cloud.browserstack.com/app-automate/espresso/v2/test-suite" \
-            -d "app=${APP_URL}" \
+            -d "app=$APP_URL" \
             -d "devices=[{\"device\":\"Google Pixel 7\",\"os_version\":\"13.0\"}]" \
             -d "deviceLogs=true" \
             -d "networkLogs=true")
@@ -93,13 +117,19 @@ jobs:
             echo "Failed to get build_id from BrowserStack response."
             exit 1
           fi
-          echo "BUILD_ID=$BUILD_ID" >> $GITHUB_ENV
+          echo "BUILD_ID=$BUILD_ID" | tee -a $GITHUB_ENV
           echo "BrowserStack build id: $BUILD_ID"
 
       - name: Wait for BrowserStack test completion
+        env:
+          BROWSERSTACK_USERNAME: ${{ secrets.BROWSERSTACK_USERNAME }}
+          BROWSERSTACK_ACCESS_KEY: ${{ secrets.BROWSERSTACK_ACCESS_KEY }}
+          BUILD_ID: ${{ env.BUILD_ID }}
         run: |
+          set -e
+          echo "Waiting for BrowserStack test completion..."
           for i in {1..60}; do
-            STATUS_RESPONSE=$(curl -s -u "${{ secrets.BROWSERSTACK_USERNAME }}:${{ secrets.BROWSERSTACK_ACCESS_KEY }}" \
+            STATUS_RESPONSE=$(curl -s -u "${BROWSERSTACK_USERNAME}:${BROWSERSTACK_ACCESS_KEY}" \
               -X GET "https://api-cloud.browserstack.com/app-automate/espresso/v2/builds/${BUILD_ID}")
             STATUS=$(echo $STATUS_RESPONSE | python3 -c "import sys, json; print(json.load(sys.stdin).get('status', ''))")
             echo "Current status: $STATUS"
@@ -113,10 +143,15 @@ jobs:
           fi
 
       - name: Download BrowserStack test results
+        id: get_report
+        env:
+          BROWSERSTACK_USERNAME: ${{ secrets.BROWSERSTACK_USERNAME }}
+          BROWSERSTACK_ACCESS_KEY: ${{ secrets.BROWSERSTACK_ACCESS_KEY }}
+          BUILD_ID: ${{ env.BUILD_ID }}
         run: |
+          set -e
           mkdir -p browserstack-results
-          # Get report URL
-          BUILD_INFO=$(curl -s -u "${{ secrets.BROWSERSTACK_USERNAME }}:${{ secrets.BROWSERSTACK_ACCESS_KEY }}" \
+          BUILD_INFO=$(curl -s -u "${BROWSERSTACK_USERNAME}:${BROWSERSTACK_ACCESS_KEY}" \
             -X GET "https://api-cloud.browserstack.com/app-automate/espresso/v2/builds/${BUILD_ID}")
           REPORT_URL=$(echo $BUILD_INFO | python3 -c "import sys, json; print(json.load(sys.stdin).get('public_url', ''))")
           echo "Test report: $REPORT_URL"
