@@ -57,12 +57,12 @@ jobs:
       - name: Build Espresso test APK
         run: |
           cd apps/mobile_app/android
-          ./gradlew assembleDebug -x lint -x test -x connectedAndroidTest
+          ./gradlew assembleDebug assembleDebugAndroidTest -x lint -x test -x connectedAndroidTest
           cd ../../../
 
       - name: Check if AndroidTest APK was generated
         run: |
-          if [ ! -f apps/mobile_app/build/outputs/apk/androidTest/release/app-release-androidTest.apk ]; then
+          if [ ! -f apps/mobile_app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk ]; then
             echo "AndroidTest APK not found!"
             exit 1
           fi
@@ -70,9 +70,9 @@ jobs:
       - name: Package Espresso test suite ZIP
         run: |
           mkdir -p tests
-          cp apps/mobile_app/build/outputs/apk/androidTest/release/app-release-androidTest.apk tests/
+          cp apps/mobile_app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk tests/
           cd tests
-          zip espresso-test-suite.zip app-release-androidTest.apk
+          zip espresso-test-suite.zip app-debug-androidTest.apk
           cd ..
 
       - name: Upload APK artifact
