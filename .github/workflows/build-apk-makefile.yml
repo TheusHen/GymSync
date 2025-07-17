@@ -66,9 +66,10 @@ jobs:
       - name: Upload app APK to BrowserStack
         id: upload_app
         run: |
+          ls -lh apps/mobile_app/build/app/outputs/flutter-apk/
           APP_UPLOAD_RESPONSE=$(curl -s -u "${{ secrets.BROWSERSTACK_USERNAME }}:${{ secrets.BROWSERSTACK_ACCESS_KEY }}" \
             -X POST "https://api-cloud.browserstack.com/app-automate/upload" \
-            -F "file=@./apk/app-release.apk")
+            -F "file=@apps/mobile_app/build/app/outputs/flutter-apk/app-release.apk")
           echo "APP_UPLOAD_RESPONSE: $APP_UPLOAD_RESPONSE"
           APP_URL=$(echo $APP_UPLOAD_RESPONSE | python3 -c "import sys, json; d=json.load(sys.stdin); print(d.get('app_url', ''))")
           if [ -z "$APP_URL" ]; then
