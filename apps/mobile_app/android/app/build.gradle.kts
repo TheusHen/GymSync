@@ -29,32 +29,35 @@ android {
     }
 
     buildTypes {
-        release {
+        getByName("release") {
             signingConfig = signingConfigs.getByName("debug")
-            minifyEnabled false
-            shrinkResources false
-            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            isMinifyEnabled = false
+            isShrinkResources = false
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro"
+            )
         }
-        debug {
-            minifyEnabled false
-            shrinkResources false
+        getByName("debug") {
+            isMinifyEnabled = false
+            isShrinkResources = false
         }
     }
 
     testOptions {
-        unitTests.includeAndroidResources = true
+        unitTests.isIncludeAndroidResources = true
     }
 
     sourceSets {
-        androidTest {
-            manifest.srcFile 'src/main/AndroidManifest.xml'
+        getByName("androidTest") {
+            manifest.srcFile("src/main/AndroidManifest.xml")
         }
     }
 
     configurations.all {
-        resolutionStrategy.eachDependency { details ->
-            if (details.requested.group == 'androidx.fragment') {
-                details.useVersion '1.7.1'
+        resolutionStrategy.eachDependency {
+            if (requested.group == "androidx.fragment") {
+                useVersion("1.7.1")
             }
         }
     }
