@@ -178,9 +178,9 @@ jobs:
             -X POST "https://api-cloud.browserstack.com/app-automate/espresso/test-suite" \
             -F "file=@${TEST_APK_PATH}")
           echo "TEST_UPLOAD_RESPONSE: $TEST_UPLOAD_RESPONSE"
-          TEST_URL=$(echo "$TEST_UPLOAD_RESPONSE" | python3 -c "import sys, json; d=json.load(sys.stdin); print(d.get('test_suite_url', ''))")
+          TEST_URL=$(echo "$TEST_UPLOAD_RESPONSE" | python3 -c "import sys, json; d=json.load(sys.stdin); print(d.get('test_url', ''))")
           if [ -z "$TEST_URL" ]; then
-            echo "Failed to get test_suite_url from BrowserStack response. Response: $TEST_UPLOAD_RESPONSE"
+            echo "Failed to get test_url from BrowserStack response. Response: $TEST_UPLOAD_RESPONSE"
             exit 1
           fi
           echo "TEST_URL=$TEST_URL" >> $GITHUB_ENV
