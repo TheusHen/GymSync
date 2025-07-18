@@ -1,5 +1,4 @@
-
-name: Build APK with Makefile, Upload to BrowserStack App Automate and Collect Results
+name: Build APK, Upload to BrowserStack App Automate and Collect Results
 
 on:
   push:
@@ -137,16 +136,18 @@ jobs:
         run: |
           echo "APK directory contents:"
           ls -lh ./apk
+          file ./apk/app-release.apk
           echo "Test APK directory contents:"
           ls -lh ./tests
+          file "${{ steps.detect_apk_test.outputs.apk_path }}"
           echo "Resolved path to test APK:"
           echo "${{ steps.detect_apk_test.outputs.apk_path }}"
-          if [ ! -f ./apk/app-release.apk ]; then
-            echo "App APK not found!"
+          if [ ! -s ./apk/app-release.apk ]; then
+            echo "App APK não encontrado ou está vazio!"
             exit 1
           fi
-          if [ ! -f "${{ steps.detect_apk_test.outputs.apk_path }}" ]; then
-            echo "Test APK not found!"
+          if [ ! -s "${{ steps.detect_apk_test.outputs.apk_path }}" ]; then
+            echo "Test APK não encontrado ou está vazio!"
             exit 1
           fi
 
@@ -156,6 +157,7 @@ jobs:
           BROWSERSTACK_USERNAME: ${{ secrets.BROWSERSTACK_USERNAME }}
           BROWSERSTACK_ACCESS_KEY: ${{ secrets.BROWSERSTACK_ACCESS_KEY }}
         run: |
+          # Upload App (AUT)
           APP_UPLOAD_RESPONSE=$(curl -s -u "${BROWSERSTACK_USERNAME}:${BROWSERSTACK_ACCESS_KEY}" \
             -X POST "https://api-cloud.browserstack.com/app-automate/upload" \
             -F "file=@./apk/app-release.apk")
