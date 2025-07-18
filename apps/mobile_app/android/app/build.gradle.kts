@@ -59,7 +59,7 @@ android {
     configurations.all {
         resolutionStrategy.eachDependency {
             if (requested.group == "androidx.fragment") {
-                useVersion("1.6.2")
+                useVersion("1.7.1")
             }
         }
     }
