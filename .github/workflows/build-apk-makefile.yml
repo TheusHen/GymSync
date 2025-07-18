@@ -195,6 +195,8 @@ jobs:
         run: |
           set -e
           echo "Running Espresso test on BrowserStack..."
+          echo "APP_URL: $APP_URL"
+          echo "TEST_URL: $TEST_URL"
           if [ -z "$APP_URL" ]; then
             echo "APP_URL is not set!"
             exit 1
