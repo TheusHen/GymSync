@@ -60,17 +60,41 @@ jobs:
           ./gradlew assembleDebug assembleDebugAndroidTest -x lint -x test -x connectedAndroidTest
           cd ../../../
 
-      - name: Check if AndroidTest APK was generated
+      - name: Detect AndroidTest APK location
+        id: detect_apk
         run: |
-          if [ ! -f apps/mobile_app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk ]; then
-            echo "AndroidTest APK not found!"
+          set -e
+          POSSIBLE_PATHS=(
+            "apps/mobile_app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk"
+            "apps/mobile_app/build/app/outputs/flutter-apk/app-debug-androidTest.apk"
+            "apps/mobile_app/android/app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk"
+            "apps/mobile_app/build/app/outputs/apk/androidTest/debug/app-debug-androidTest.apk"
+            "apps/mobile_app/app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk"
+          )
+          APK_PATH=""
+          for path in "${POSSIBLE_PATHS[@]}"; do
+            if [ -f "$path" ]; then
+              APK_PATH="$path"
+              break
+            fi
+          done
+          if [ -z "$APK_PATH" ]; then
+            FOUND=$(find apps/mobile_app -name "app-debug-androidTest.apk" | head -n 1)
+            if [ -n "$FOUND" ]; then
+              APK_PATH="$FOUND"
+            fi
+          fi
+          if [ -z "$APK_PATH" ]; then
+            echo "AndroidTest APK not found in any known location!"
             exit 1
           fi
+          echo "APK_PATH=$APK_PATH" >> $GITHUB_ENV
+          echo "Detected AndroidTest APK at: $APK_PATH"
 
       - name: Package Espresso test suite ZIP
         run: |
           mkdir -p tests
-          cp apps/mobile_app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk tests/
+          cp "$APK_PATH" tests/
           cd tests
           zip espresso-test-suite.zip app-debug-androidTest.apk
           cd ..
