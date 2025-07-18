@@ -205,11 +205,11 @@ jobs:
           fi
           RUN_RESPONSE=$(curl -s -u "${BROWSERSTACK_USERNAME}:${BROWSERSTACK_ACCESS_KEY}" \
             -X POST "https://api-cloud.browserstack.com/app-automate/espresso/v2/test-suite" \
-            -d "app=$APP_URL" \
-            -d "testSuite=$TEST_URL" \
-            -d "devices=[{\"device\":\"Google Pixel 7\",\"os_version\":\"13.0\"}]" \
-            -d "deviceLogs=true" \
-            -d "networkLogs=true")
+            --data-urlencode "app=$APP_URL" \
+            --data-urlencode "testSuite=$TEST_URL" \
+            --data-urlencode "devices=[{\"device\":\"Google Pixel 7\",\"os_version\":\"13.0\"}]" \
+            --data-urlencode "deviceLogs=true" \
+            --data-urlencode "networkLogs=true")
           echo "RUN_RESPONSE: $RUN_RESPONSE"
           BUILD_ID=$(echo "$RUN_RESPONSE" | python3 -c "import sys, json; d=json.load(sys.stdin); print(d.get('build_id', ''))")
           if [ -z "$BUILD_ID" ]; then
