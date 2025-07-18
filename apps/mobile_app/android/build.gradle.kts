@@ -1,3 +1,7 @@
+import org.gradle.api.Project
+import org.gradle.api.tasks.Delete
+import org.gradle.api.file.Directory
+
 allprojects {
     repositories {
         google()
@@ -15,14 +19,18 @@ subprojects {
 
 subprojects {
     afterEvaluate {
-        if (project.extensions.findByName("android") != null) {
-            val androidExtension = project.extensions.getByName("android")
-            val defaultConfig = androidExtension.javaClass
-                .getMethod("getDefaultConfig")
-                .invoke(androidExtension)
-            defaultConfig.javaClass
-                .getMethod("setMinSdkVersion", Int::class.java)
-                .invoke(defaultConfig, 26)
+        project.extensions.findByName("android")?.let { ext ->
+            val androidExtClass = ext.javaClass
+            runCatching {
+                val setCompileSdk = androidExtClass.getMethod("setCompileSdkVersion", Int::class.java)
+                setCompileSdk.invoke(ext, 35)
+            }
+            runCatching {
+                val defaultConfig = androidExtClass.getMethod("getDefaultConfig").invoke(ext)
+                val defaultConfigClass = defaultConfig.javaClass
+                val setMinSdk = defaultConfigClass.getMethod("setMinSdkVersion", Int::class.java)
+                setMinSdk.invoke(defaultConfig, 26)
+            }
         }
     }
 }
