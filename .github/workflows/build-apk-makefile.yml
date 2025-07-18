@@ -91,25 +91,17 @@ jobs:
           echo "APK_PATH=$APK_PATH" >> $GITHUB_ENV
           echo "Detected AndroidTest APK at: $APK_PATH"
 
-      - name: Package Espresso test suite ZIP
-        run: |
-          mkdir -p tests
-          cp "$APK_PATH" tests/
-          cd tests
-          zip espresso-test-suite.zip app-debug-androidTest.apk
-          cd ..
-
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: app-release-apk
           path: apps/mobile_app/build/app/outputs/flutter-apk/app-release.apk
 
-      - name: Upload Espresso test suite artifact
+      - name: Upload Espresso test APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: espresso-test-suite
-          path: tests/espresso-test-suite.zip
+          name: espresso-test-apk
+          path: ${{ env.APK_PATH }}
 
   browserstack_test:
     needs: build_apk
@@ -125,11 +117,21 @@ jobs:
           name: app-release-apk
           path: ./apk/
 
-      - name: Download Espresso test suite artifact
+      - name: Download Espresso test APK artifact
         uses: actions/download-artifact@v4
         with:
-          name: espresso-test-suite
+          name: espresso-test-apk
           path: ./tests/
+
+      - name: Detect Espresso APK
+        id: detect_apk_test
+        run: |
+          TEST_APK_PATH=$(find ./tests -name "app-debug-androidTest.apk" | head -n 1)
+          if [ -z "$TEST_APK_PATH" ]; then
+            echo "Test APK not found!"
+            exit 1
+          fi
+          echo "TEST_APK_PATH=$TEST_APK_PATH" >> $GITHUB_ENV
 
       - name: Verify artifacts
         run: |
@@ -139,8 +141,8 @@ jobs:
             echo "APK artifact not found after download!"
             exit 1
           fi
-          if [ ! -f ./tests/espresso-test-suite.zip ]; then
-            echo "Espresso test suite ZIP not found after download!"
+          if [ -z "$TEST_APK_PATH" ] || [ ! -f "$TEST_APK_PATH" ]; then
+            echo "Espresso test APK not found after download!"
             exit 1
           fi
 
@@ -163,17 +165,18 @@ jobs:
           fi
           echo "APP_URL=$APP_URL" >> $GITHUB_ENV
 
-      - name: Upload Espresso test suite ZIP to BrowserStack
+      - name: Upload Espresso test APK to BrowserStack
         id: upload_test_suite
         env:
           BROWSERSTACK_USERNAME: ${{ secrets.BROWSERSTACK_USERNAME }}
           BROWSERSTACK_ACCESS_KEY: ${{ secrets.BROWSERSTACK_ACCESS_KEY }}
+          TEST_APK_PATH: ${{ env.TEST_APK_PATH }}
         run: |
           set -e
-          echo "Uploading Espresso test suite ZIP to BrowserStack..."
+          echo "Uploading Espresso test APK to BrowserStack..."
           TEST_UPLOAD_RESPONSE=$(curl -s -u "${BROWSERSTACK_USERNAME}:${BROWSERSTACK_ACCESS_KEY}" \
             -X POST "https://api-cloud.browserstack.com/app-automate/espresso/test-suite" \
-            -F "file=@./tests/espresso-test-suite.zip")
+            -F "file=@${TEST_APK_PATH}")
           echo "TEST_UPLOAD_RESPONSE: $TEST_UPLOAD_RESPONSE"
           TEST_URL=$(echo "$TEST_UPLOAD_RESPONSE" | python3 -c "import sys, json; d=json.load(sys.stdin); print(d.get('test_suite_url', ''))")
           if [ -z "$TEST_URL" ]; then
