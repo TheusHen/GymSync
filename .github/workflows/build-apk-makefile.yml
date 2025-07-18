@@ -1,3 +1,4 @@
+
 name: Build APK with Makefile, Upload to BrowserStack App Automate and Collect Results
 
 on:
@@ -88,8 +89,7 @@ jobs:
             echo "AndroidTest APK not found in any known location!"
             exit 1
           fi
-          echo "APK_PATH=$APK_PATH" >> $GITHUB_ENV
-          echo "::set-output name=apk_path::$APK_PATH"
+          echo "apk_path=$APK_PATH" >> $GITHUB_OUTPUT
 
       - name: Upload app APK artifact
         uses: actions/upload-artifact@v4
@@ -131,8 +131,7 @@ jobs:
             echo "Test APK not found!"
             exit 1
           fi
-          echo "TEST_APK_PATH=$TEST_APK_PATH" >> $GITHUB_ENV
-          echo "::set-output name=apk_path::$TEST_APK_PATH"
+          echo "apk_path=$TEST_APK_PATH" >> $GITHUB_OUTPUT
 
       - name: Verify downloaded artifacts and paths
         run: |
@@ -161,12 +160,12 @@ jobs:
             -X POST "https://api-cloud.browserstack.com/app-automate/upload" \
             -F "file=@./apk/app-release.apk")
           echo "APP_UPLOAD_RESPONSE: $APP_UPLOAD_RESPONSE"
-          APP_URL=$(echo "$APP_UPLOAD_RESPONSE" | python3 -c "import sys, json; d=json.load(sys.stdin); print(d.get('app_url', ''))")
+          APP_URL=$(echo "$APP_UPLOAD_RESPONSE" | python3 -c "import sys, json; print(json.load(sys.stdin).get('app_url', ''))")
           if [ -z "$APP_URL" ]; then
-            echo "Failed to extract app_url from response."
+            echo "Failed to extract app_url"
             exit 1
           fi
-          echo "APP_URL=$APP_URL" >> $GITHUB_ENV
+          echo "app_url=$APP_URL" >> $GITHUB_OUTPUT
 
       - name: Upload Espresso test APK to BrowserStack
         id: upload_test_suite
@@ -180,22 +179,24 @@ jobs:
             -X POST "https://api-cloud.browserstack.com/app-automate/espresso/test-suite" \
             -F "file=@${TEST_APK_PATH}")
           echo "TEST_UPLOAD_RESPONSE: $TEST_UPLOAD_RESPONSE"
-          TEST_URL=$(echo "$TEST_UPLOAD_RESPONSE" | python3 -c "import sys, json; d=json.load(sys.stdin); print(d.get('test_url', ''))")
+          TEST_URL=$(echo "$TEST_UPLOAD_RESPONSE" | python3 -c "import sys, json; print(json.load(sys.stdin).get('test_url', ''))")
           if [ -z "$TEST_URL" ]; then
-            echo "Failed to extract test_url from response."
+            echo "Failed to extract test_url"
             exit 1
           fi
-          echo "TEST_URL=$TEST_URL" >> $GITHUB_ENV
+          echo "test_url=$TEST_URL" >> $GITHUB_OUTPUT
 
       - name: Run Espresso test on BrowserStack
         id: run_test
         env:
           BROWSERSTACK_USERNAME: ${{ secrets.BROWSERSTACK_USERNAME }}
           BROWSERSTACK_ACCESS_KEY: ${{ secrets.BROWSERSTACK_ACCESS_KEY }}
-          APP_URL: ${{ env.APP_URL }}
-          TEST_URL: ${{ env.TEST_URL }}
         run: |
+          APP_URL="${{ steps.upload_app.outputs.app_url }}"
+          TEST_URL="${{ steps.upload_test_suite.outputs.test_url }}"
           echo "Running Espresso test on BrowserStack..."
+          echo "APP_URL=$APP_URL"
+          echo "TEST_URL=$TEST_URL"
           RUN_RESPONSE=$(curl -s -u "${BROWSERSTACK_USERNAME}:${BROWSERSTACK_ACCESS_KEY}" \
             -X POST "https://api-cloud.browserstack.com/app-automate/espresso/v2/test-suite" \
             --data-urlencode "app=$APP_URL" \
@@ -204,19 +205,19 @@ jobs:
             --data-urlencode "deviceLogs=true" \
             --data-urlencode "networkLogs=true")
           echo "RUN_RESPONSE: $RUN_RESPONSE"
-          BUILD_ID=$(echo "$RUN_RESPONSE" | python3 -c "import sys, json; d=json.load(sys.stdin); print(d.get('build_id', ''))")
+          BUILD_ID=$(echo "$RUN_RESPONSE" | python3 -c "import sys, json; print(json.load(sys.stdin).get('build_id', ''))")
           if [ -z "$BUILD_ID" ]; then
-            echo "Failed to extract build_id."
+            echo "Failed to extract build_id"
             exit 1
           fi
-          echo "BUILD_ID=$BUILD_ID" >> $GITHUB_ENV
+          echo "build_id=$BUILD_ID" >> $GITHUB_OUTPUT
 
       - name: Wait for BrowserStack test completion
         env:
           BROWSERSTACK_USERNAME: ${{ secrets.BROWSERSTACK_USERNAME }}
           BROWSERSTACK_ACCESS_KEY: ${{ secrets.BROWSERSTACK_ACCESS_KEY }}
-          BUILD_ID: ${{ env.BUILD_ID }}
         run: |
+          BUILD_ID="${{ steps.run_test.outputs.build_id }}"
           for i in {1..60}; do
             STATUS_RESPONSE=$(curl -s -u "${BROWSERSTACK_USERNAME}:${BROWSERSTACK_ACCESS_KEY}" \
               -X GET "https://api-cloud.browserstack.com/app-automate/espresso/v2/builds/${BUILD_ID}")
@@ -237,15 +238,15 @@ jobs:
         env:
           BROWSERSTACK_USERNAME: ${{ secrets.BROWSERSTACK_USERNAME }}
           BROWSERSTACK_ACCESS_KEY: ${{ secrets.BROWSERSTACK_ACCESS_KEY }}
-          BUILD_ID: ${{ env.BUILD_ID }}
         run: |
+          BUILD_ID="${{ steps.run_test.outputs.build_id }}"
           mkdir -p browserstack-results
           BUILD_INFO=$(curl -s -u "${BROWSERSTACK_USERNAME}:${BROWSERSTACK_ACCESS_KEY}" \
             -X GET "https://api-cloud.browserstack.com/app-automate/espresso/v2/builds/${BUILD_ID}")
           REPORT_URL=$(echo "$BUILD_INFO" | python3 -c "import sys, json; print(json.load(sys.stdin).get('public_url', ''))")
           echo "Test report: $REPORT_URL"
           echo "Test report: $REPORT_URL" >> $GITHUB_STEP_SUMMARY
-          echo $REPORT_URL > browserstack-results/report_url.txt
+          echo "$REPORT_URL" > browserstack-results/report_url.txt
 
       - name: Upload BrowserStack results artifact
         uses: actions/upload-artifact@v4
