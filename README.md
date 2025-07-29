@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="./.github/assets/Logo.png" alt="GymSync Logo" />
+  <img src="https://raw.githubusercontent.com/TheusHen/GymSync/refs/heads/main/.github/assets/Logo.png" alt="GymSync Logo" />
 </p>
 
 # GymSync - Show your gym workouts on Discord with RPC
