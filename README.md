@@ -58,7 +58,6 @@ make desktop-presence
 
 <p align="center">
   <img src="./.github/assets/S23-FE.png" alt="Samsung S23 FE" style="margin: 10px;" />
-  <img src="./.github/assets/Samsung.png" alt="Samsung Logo" style="margin: 10px;" />
 </p>
 
 ## License
