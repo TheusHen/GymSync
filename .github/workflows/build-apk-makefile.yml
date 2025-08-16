@@ -34,6 +34,7 @@ jobs:
           node --version
           npm --version
 
+      # ---- Build release APK ----
       - name: Build APK with Makefile
         run: make apk
 
@@ -44,11 +45,19 @@ jobs:
             exit 1
           fi
 
+      - name: Upload app APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-release-apk
+          path: apps/mobile_app/build/app/outputs/flutter-apk/app-release.apk
+
+      # ---- Setup Android SDK ----
       - name: Ensure Android SDK & Build Tools
         run: |
           yes | $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager --licenses || true
           $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0"
 
+      # ---- Build test APKs ----
       - name: Build Espresso test APK
         run: |
           cd apps/mobile_app/android
@@ -84,12 +93,6 @@ jobs:
             exit 1
           fi
           echo "apk_path=$APK_PATH" >> $GITHUB_OUTPUT
-
-      - name: Upload app APK artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: app-release-apk
-          path: apps/mobile_app/build/app/outputs/flutter-apk/app-release.apk
 
       - name: Upload Espresso test APK artifact
         uses: actions/upload-artifact@v4
