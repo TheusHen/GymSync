@@ -1,9 +1,20 @@
 import 'package:health/health.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'dart:io';
+import 'dart:async';
+import 'package:flutter/foundation.dart';
+
+typedef ActivityDetectionCallback = void Function(String activityType, bool isActive);
 
 class GoogleFitService {
   final Health _health = Health();
+  Timer? _activityMonitorTimer;
+  ActivityDetectionCallback? onActivityDetected;
+  
+  // Singleton pattern
+  static final GoogleFitService _instance = GoogleFitService._internal();
+  factory GoogleFitService() => _instance;
+  GoogleFitService._internal();
 
   final List<HealthDataType> _types = [
     HealthDataType.WORKOUT,
@@ -11,6 +22,7 @@ class GoogleFitService {
     HealthDataType.ACTIVE_ENERGY_BURNED,
     HealthDataType.DISTANCE_DELTA,
     HealthDataType.HEART_RATE,
+    HealthDataType.MOVE_MINUTES,
   ];
 
   static Future<bool> requestPermission({bool preferSamsung = false}) async {
@@ -89,10 +101,84 @@ class GoogleFitService {
 
   /// Checks if there is any active exercise currently (e.g., walking, running, etc.)
   Future<String?> getCurrentActiveExerciseType() async {
-    final exercise = await getCurrentExerciseDetailed();
-    if (exercise != null) {
-      return exercise['exerciseType'];
+    try {
+      // First check for specific workout
+      final exercise = await getCurrentExerciseDetailed();
+      if (exercise != null) {
+        return exercise['exerciseType'];
+      }
+      
+      // If no specific workout, check for walking activity
+      if (await isWalking()) {
+        return "Walking";
+      }
+      
+      return null;
+    } catch (e) {
+      debugPrint('Error detecting activity: $e');
+      return null;
     }
-    return null;
+  }
+  
+  /// Specifically checks if the user is walking
+  Future<bool> isWalking() async {
+    try {
+      final now = DateTime.now();
+      final fiveMinutesAgo = now.subtract(const Duration(minutes: 5));
+      
+      // Check recent steps
+      final steps = await _health.getHealthDataFromTypes(
+        types: [HealthDataType.STEPS],
+        startTime: fiveMinutesAgo,
+        endTime: now,
+      );
+      
+      // Check if there are any steps in the last 5 minutes
+      if (steps.isNotEmpty) {
+        int totalSteps = 0;
+        for (var step in steps) {
+          if (step.value is NumericHealthValue) {
+            totalSteps += (step.value as NumericHealthValue).numericValue.toInt();
+          }
+        }
+        
+        // If more than 20 steps in the last 5 minutes, consider it walking
+        return totalSteps > 20;
+      }
+      
+      // Also check move minutes as a fallback
+      final moveMinutes = await _health.getHealthDataFromTypes(
+        types: [HealthDataType.MOVE_MINUTES],
+        startTime: fiveMinutesAgo,
+        endTime: now,
+      );
+      
+      // If there are any move minutes in the last 5 minutes, consider it walking
+      return moveMinutes.isNotEmpty;
+    } catch (e) {
+      debugPrint('Error checking if walking: $e');
+      return false;
+    }
+  }
+  
+  /// Starts continuous monitoring of user activity
+  void startActivityMonitoring({ActivityDetectionCallback? callback}) {
+    if (callback != null) {
+      onActivityDetected = callback;
+    }
+    
+    _activityMonitorTimer?.cancel();
+    _activityMonitorTimer = Timer.periodic(const Duration(minutes: 1), (_) async {
+      final activityType = await getCurrentActiveExerciseType();
+      if (activityType != null && onActivityDetected != null) {
+        onActivityDetected!(activityType, true);
+      }
+    });
+  }
+  
+  /// Stops continuous monitoring of user activity
+  void stopActivityMonitoring() {
+    _activityMonitorTimer?.cancel();
+    _activityMonitorTimer = null;
   }
 }
