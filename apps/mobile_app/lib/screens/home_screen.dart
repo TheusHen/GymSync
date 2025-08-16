@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_background/flutter_background.dart';
-import 'package:flutter_background/android_config.dart';
 import 'package:permission_handler/permission_handler.dart';
 import '../widgets/circular_timer.dart';
 import '../widgets/discord_status_indicator.dart';
@@ -14,6 +13,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:flutter_background/src/android_config.dart' as fb;
+import 'package:geolocator_android/src/types/foreground_settings.dart' as ga;
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -51,8 +52,6 @@ class _HomeScreenState extends State<HomeScreen> {
       await _startBackgroundMode();
       await _loadGymLocation();
       _startPersistentBackgroundLocationMonitor();
-      
-      // Request to ignore battery optimizations for better background performance
       if (await Permission.ignoreBatteryOptimizations.isDenied) {
         await Permission.ignoreBatteryOptimizations.request();
       }
@@ -60,7 +59,6 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _startPersistentBackgroundLocationMonitor() {
-    // Use a more battery-efficient interval for background monitoring
     Timer.periodic(const Duration(seconds: 30), (_) async {
       final prefs = await SharedPreferences.getInstance();
       final lat = prefs.getDouble('gym_lat');
@@ -69,7 +67,6 @@ class _HomeScreenState extends State<HomeScreen> {
       final gymLoc = LatLng(lat, lng);
 
       try {
-        // Use a lower accuracy for background monitoring to save battery
         final pos = await Geolocator.getCurrentPosition(
           desiredAccuracy: LocationAccuracy.low,
           timeLimit: const Duration(seconds: 10),
@@ -79,7 +76,6 @@ class _HomeScreenState extends State<HomeScreen> {
             throw TimeoutException('Location request timed out in background');
           },
         );
-        
         final Distance distance = Distance();
         final double dist = distance(
           LatLng(pos.latitude, pos.longitude),
@@ -87,8 +83,6 @@ class _HomeScreenState extends State<HomeScreen> {
         );
         final bool inside = dist <= gymRadiusMeters;
         final bool wasInGym = inGym;
-        
-        // Update the inGym state
         if (mounted) {
           setState(() {
             inGym = inside;
@@ -96,29 +90,19 @@ class _HomeScreenState extends State<HomeScreen> {
         } else {
           inGym = inside;
         }
-
         final data = await BackendService.getStatus();
         String currentActivity = data?['status']?['activity'] ?? 'unknown';
         bool isRunning = (data?['status']?['state'] ?? 'paused') == 'active';
-
-        // Start gym activity when arriving at the gym
         if (inside && (!isRunning || currentActivity != "Gym")) {
           await BackendService.start("Gym");
-          
-          // Show notification when arriving at the gym (transition from outside to inside)
           if (!wasInGym && inside) {
             _showGymArrivalNotification();
           }
         }
-        
-        // Also check for walking activity when not in the gym
         if (!inside) {
           _checkAndStartActiveExercise();
         }
       } catch (e) {
-        debugPrint('Error while checking location in background: $e');
-        
-        // Try with last known position as fallback
         try {
           final lastPos = await Geolocator.getLastKnownPosition();
           if (lastPos != null) {
@@ -128,7 +112,6 @@ class _HomeScreenState extends State<HomeScreen> {
               gymLoc,
             );
             final bool inside = dist <= gymRadiusMeters;
-            
             if (mounted) {
               setState(() {
                 inGym = inside;
@@ -137,9 +120,7 @@ class _HomeScreenState extends State<HomeScreen> {
               inGym = inside;
             }
           }
-        } catch (fallbackError) {
-          debugPrint('Error getting last known position in background: $fallbackError');
-        }
+        } catch (_) {}
       }
     });
   }
@@ -160,31 +141,23 @@ class _HomeScreenState extends State<HomeScreen> {
     _startLocationMonitoring();
     _startActivityMonitoring();
   }
-  
+
   void _startActivityMonitoring() async {
     final granted = await GoogleFitService.requestPermission();
     if (!granted) {
-      debugPrint('Activity recognition permission not granted');
       return;
     }
-    
-    // Start continuous activity monitoring with callback
     GoogleFitService().startActivityMonitoring(
-      callback: (activityType, isActive) {
-        debugPrint('Activity detected: $activityType, isActive: $isActive');
-        
-        // Only start tracking if we're not in the gym and not already tracking this activity
-        if (!inGym && (!running || activity != activityType) && isActive) {
-          _startActivityTracking(activityType);
+        callback: (activityType, isActive) {
+          if (!inGym && (!running || activity != activityType) && isActive) {
+            _startActivityTracking(activityType);
+          }
         }
-      }
     );
   }
-  
+
   void _startActivityTracking(String activityType) async {
-    // Don't start if we're already at the gym or already tracking this activity
     if (inGym || (running && activity == activityType)) return;
-    
     try {
       await BackendService.start(activityType);
       setState(() {
@@ -194,19 +167,13 @@ class _HomeScreenState extends State<HomeScreen> {
       });
       _startStatusUpdates();
       _maybeUpdateNotification();
-      
-      // Show notification for walking activity
       if (activityType == "Walking") {
         _showCustomNotification(
-          'Walking Detected',
-          'GymSync is now tracking your walking activity.'
+            'Walking Detected',
+            'GymSync is now tracking your walking activity.'
         );
       }
-      
-      debugPrint('Started tracking activity: $activityType at ${DateTime.now()}');
-    } catch (e) {
-      debugPrint('Error starting activity tracking: $e');
-    }
+    } catch (_) {}
   }
 
   Future<void> _loadBackendStatus() async {
@@ -250,29 +217,23 @@ class _HomeScreenState extends State<HomeScreen> {
     final hasPermissions = await FlutterBackground.hasPermissions;
     if (!hasPermissions) {
       await FlutterBackground.initialize(
-        androidConfig: FlutterBackgroundAndroidConfig(
+        androidConfig: fb.FlutterBackgroundAndroidConfig(
           notificationTitle: "GymSync Active",
           notificationText: "Tracking your workout and location in the background.",
-          notificationIcon: AndroidResource(name: 'ic_notification'),
+          notificationIcon: fb.AndroidResource(name: 'ic_notification'),
           enableWifiLock: true,
           showBadge: true,
         ),
       );
     }
-    
-    // Try to enable background execution
     bool backgroundEnabled = false;
     try {
       backgroundEnabled = await FlutterBackground.enableBackgroundExecution();
-    } catch (e) {
-      debugPrint('Error enabling background execution: $e');
-    }
-    
-    // Se não conseguir habilitar, mostra notificação
+    } catch (_) {}
     if (!backgroundEnabled) {
       _showCustomNotification(
-        'Background Execution Issue',
-        'GymSync may not work properly in the background. Please check app permissions.'
+          'Background Execution Issue',
+          'GymSync may not work properly in the background. Please check app permissions.'
       );
     }
   }
@@ -319,20 +280,15 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _startGymFlowIfNeeded() async {
-    // Check if we're already running a Gym activity
     if (running && activity == "Gym") {
-      return; // Already running the correct activity
+      return;
     }
-    
-    // If we're running a different activity, stop it first
     if (running && activity != "Gym") {
       await BackendService.stop();
       setState(() {
         lastSession = '${_formatElapsed(elapsed)} - $activity';
       });
     }
-    
-    // Start the Gym activity
     try {
       await BackendService.start("Gym");
       setState(() {
@@ -342,12 +298,7 @@ class _HomeScreenState extends State<HomeScreen> {
       });
       _startStatusUpdates();
       _maybeUpdateNotification();
-      
-      // Log that the timer was started automatically
-      debugPrint('Timer started automatically upon gym arrival at ${DateTime.now()}');
-    } catch (e) {
-      debugPrint('Error starting gym activity: $e');
-      // Try again after a short delay if it fails
+    } catch (_) {
       Future.delayed(const Duration(seconds: 5), () {
         if (inGym && (!running || activity != "Gym")) {
           _startGymFlowIfNeeded();
@@ -394,9 +345,7 @@ class _HomeScreenState extends State<HomeScreen> {
       });
       return;
     }
-    
     try {
-      // Add timeout to prevent infinite loading
       final pos = await Geolocator.getCurrentPosition(
         desiredAccuracy: LocationAccuracy.high,
         timeLimit: const Duration(seconds: 5),
@@ -406,33 +355,25 @@ class _HomeScreenState extends State<HomeScreen> {
           throw TimeoutException('Location request timed out');
         },
       );
-      
       final Distance distance = Distance();
       final double dist = distance(
         LatLng(pos.latitude, pos.longitude),
         gymLocation!,
       );
-      
       final bool wasInGym = inGym;
       final bool nowInGym = dist <= gymRadiusMeters;
-      
       setState(() {
         inGym = nowInGym;
         locationChecked = true;
       });
-      
-      // Notify user when they arrive at the gym (transition from outside to inside)
       if (!wasInGym && nowInGym) {
         _showGymArrivalNotification();
       }
-    } catch (e) {
-      debugPrint('Error while checking if in gym: $e');
+    } catch (_) {
       setState(() {
         inGym = false;
         locationChecked = true;
       });
-      
-      // Use last known position as fallback
       try {
         final lastPos = await Geolocator.getLastKnownPosition();
         if (lastPos != null) {
@@ -445,27 +386,21 @@ class _HomeScreenState extends State<HomeScreen> {
             inGym = dist <= gymRadiusMeters;
           });
         }
-      } catch (fallbackError) {
-        debugPrint('Error getting last known position: $fallbackError');
-      }
+      } catch (_) {}
     }
   }
-  
+
   void _showGymArrivalNotification() {
     if (!NotificationService().enabled) return;
-    
-    // Create a custom method in NotificationService to show gym arrival notification
     _showCustomNotification(
-      'Welcome to the Gym!',
-      'Your workout timer has started automatically.'
+        'Welcome to the Gym!',
+        'Your workout timer has started automatically.'
     );
   }
-  
+
   Future<void> _showCustomNotification(String title, String body) async {
-    // Use FlutterLocalNotificationsPlugin directly since we can't access the private _plugin
-    final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin = 
-        FlutterLocalNotificationsPlugin();
-    
+    final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
+    FlutterLocalNotificationsPlugin();
     const AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
       'gym_arrival_channel',
       'Gym Arrival',
@@ -474,9 +409,8 @@ class _HomeScreenState extends State<HomeScreen> {
       priority: Priority.high,
       icon: 'ic_notification',
     );
-    
     await flutterLocalNotificationsPlugin.show(
-      2, // Different ID from the workout notification
+      2,
       title,
       body,
       const NotificationDetails(android: androidDetails),
@@ -547,10 +481,9 @@ class _HomeScreenState extends State<HomeScreen> {
             onPressed: () async {
               await Navigator.of(context)
                   .push(MaterialPageRoute(builder: (_) => const SettingsScreen()));
-              // Ao voltar das configurações, recarrega localização e estado
               await _loadGymLocation();
               await _checkIfInGym();
-              setState(() {}); // força rebuild
+              setState(() {});
             },
           )
         ],
