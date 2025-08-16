@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_background/flutter_background.dart';
+import 'package:flutter_background/android_config.dart';
 import 'package:permission_handler/permission_handler.dart';
 import '../widgets/circular_timer.dart';
 import '../widgets/discord_status_indicator.dart';
@@ -252,7 +253,7 @@ class _HomeScreenState extends State<HomeScreen> {
         androidConfig: FlutterBackgroundAndroidConfig(
           notificationTitle: "GymSync Active",
           notificationText: "Tracking your workout and location in the background.",
-          notificationIcon: 'ic_notification',
+          notificationIcon: AndroidResource(name: 'ic_notification'),
           enableWifiLock: true,
           showBadge: true,
         ),
