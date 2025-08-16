@@ -252,11 +252,9 @@ class _HomeScreenState extends State<HomeScreen> {
         androidConfig: FlutterBackgroundAndroidConfig(
           notificationTitle: "GymSync Active",
           notificationText: "Tracking your workout and location in the background.",
-          notificationImportance: AndroidNotificationImportance.defaultImportance,
           notificationIcon: 'ic_notification',
           enableWifiLock: true,
           showBadge: true,
-          notificationChannelDescription: 'Keeps the app running in the background to track workouts and location.',
         ),
       );
     }
