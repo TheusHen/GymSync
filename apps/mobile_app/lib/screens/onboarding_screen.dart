@@ -8,7 +8,6 @@ import 'home_screen.dart';
 import 'package:device_info_plus/device_info_plus.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'dart:io';
-import 'package:restart_app/restart_app.dart';
 
 class OnboardingScreen extends StatefulWidget {
   const OnboardingScreen({super.key});
@@ -36,12 +35,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   Future<void> _initOnboarding() async {
     await _loadSavedProgress();
     await _detectDeviceAndCheckHealthPermissions();
-
     if (_allCompleted()) {
       _goToHome();
       return;
     }
-
     setState(() {
       loading = false;
     });
@@ -83,6 +80,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     } else {
       isSamsung = false;
     }
+    await _refreshHealthStatus();
+  }
+
+  Future<void> _refreshHealthStatus() async {
     final alreadyGranted = await _checkHealthPermissions();
     setState(() {
       healthChecked = true;
@@ -105,14 +106,13 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     return await GoogleFitService().checkAllPermissionsGranted();
   }
 
-  void connectDiscord() async {
+  Future<void> connectDiscord() async {
     final user = await DiscordService.connect(context);
     if (user != null) {
       setState(() {
         discordConnected = true;
         discordUsername = user.username;
       });
-      // Save the REAL Discord ID!
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString('onboarding_discord_id', user.id);
       await _saveProgress();
@@ -120,7 +120,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     }
   }
 
-  void selectGym() async {
+  Future<void> selectGym() async {
     final location = await LocationService.pickGymLocation(context);
     if (location != null) {
       setState(() => locationSet = true);
@@ -129,34 +129,19 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     }
   }
 
-  void enableHealth() async {
+  Future<void> enableHealth() async {
     if (requestingHealth) return;
     setState(() => requestingHealth = true);
     final granted = await GoogleFitService.requestPermission(
       preferSamsung: isSamsung,
     );
-    setState(() {
-      healthGranted = granted;
-      requestingHealth = false;
-    });
+    await _refreshHealthStatus();
+    setState(() => requestingHealth = false);
     await _saveProgress();
-    if (!granted && mounted) {
+    if (!healthGranted && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Health access permission is mandatory. Please grant permissions in settings.')),
       );
-    }
-    // RESTART THE APP IF IT'S SAMSUNG AND ACCESS WAS GRANTED
-    if (isSamsung && granted) {
-      // Feedback message to the user
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('After granting access, the app will restart and redirect you to the Home screen.')),
-        );
-      }
-      // Wait a bit for the message to be displayed before restarting
-      await Future.delayed(const Duration(seconds: 2));
-      Restart.restartApp();
-      return;
     }
     if (_allCompleted()) _goToHome();
   }

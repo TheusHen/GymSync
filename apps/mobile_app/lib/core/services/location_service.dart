@@ -44,6 +44,9 @@ class _MapPickerScreenState extends State<_MapPickerScreen> {
   LatLng? _deviceLocation;
   bool _loading = true;
 
+  final TextEditingController _latController = TextEditingController();
+  final TextEditingController _lngController = TextEditingController();
+
   @override
   void initState() {
     super.initState();
@@ -83,6 +86,25 @@ class _MapPickerScreenState extends State<_MapPickerScreen> {
     });
   }
 
+  void _addMarkerFromTextFields() {
+    final latText = _latController.text.trim();
+    final lngText = _lngController.text.trim();
+
+    if (latText.isNotEmpty && lngText.isNotEmpty) {
+      final lat = double.tryParse(latText);
+      final lng = double.tryParse(lngText);
+      if (lat != null && lng != null) {
+        setState(() {
+          picked = LatLng(lat, lng);
+        });
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Invalid latitude or longitude!'),
+        ));
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     if (kIsWeb) {
@@ -111,47 +133,104 @@ class _MapPickerScreenState extends State<_MapPickerScreen> {
 
     return Scaffold(
       appBar: AppBar(title: const Text('Select your gym location')),
-      body: FlutterMap(
-        options: MapOptions(
-          initialCenter: _deviceLocation!,
-          initialZoom: 15,
-          onTap: (tapPosition, latlng) {
-            setState(() => picked = latlng);
-          },
-        ),
+      body: Column(
         children: [
-          TileLayer(
-            urlTemplate: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-            tileProvider: NetworkTileProvider(),
-            userAgentPackageName: 'com.example.mobile_app',
-          ),
-          TileLayer(
-            urlTemplate: 'https://services.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',
-            tileProvider: NetworkTileProvider(),
-            userAgentPackageName: 'com.example.mobile_app',
-          ),
-          if (picked != null)
-            MarkerLayer(
-              markers: [
-                Marker(
-                  point: picked!,
-                  width: 40,
-                  height: 40,
-                  child: const Icon(Icons.location_on, color: Colors.red, size: 40),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _latController,
+                    keyboardType: TextInputType.numberWithOptions(decimal: true),
+                    decoration: const InputDecoration(
+                      labelText: "Latitude",
+                      hintText: "Paste latitude",
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: TextField(
+                    controller: _lngController,
+                    keyboardType: TextInputType.numberWithOptions(decimal: true),
+                    decoration: const InputDecoration(
+                      labelText: "Longitude",
+                      hintText: "Paste longitude",
+                    ),
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.add_location_alt, color: Colors.blue),
+                  onPressed: _addMarkerFromTextFields,
+                  tooltip: "Add marker",
                 ),
               ],
             ),
+          ),
+          Expanded(
+            child: FlutterMap(
+              options: MapOptions(
+                initialCenter: _deviceLocation!,
+                initialZoom: 15,
+                onTap: (tapPosition, latlng) {
+                  setState(() => picked = latlng);
+                },
+              ),
+              children: [
+                TileLayer(
+                  urlTemplate: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+                  tileProvider: NetworkTileProvider(),
+                  userAgentPackageName: 'com.example.mobile_app',
+                ),
+                TileLayer(
+                  urlTemplate: 'https://services.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',
+                  tileProvider: NetworkTileProvider(),
+                  userAgentPackageName: 'com.example.mobile_app',
+                ),
+                // Current location marker (blue dot)
+                MarkerLayer(
+                  markers: [
+                    Marker(
+                      point: _deviceLocation!,
+                      width: 30,
+                      height: 30,
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: Colors.blue,
+                          shape: BoxShape.circle,
+                          border: Border.all(color: Colors.white, width: 3),
+                        ),
+                        child: const Icon(Icons.my_location, color: Colors.white, size: 20),
+                      ),
+                    ),
+                  ],
+                ),
+                if (picked != null)
+                  MarkerLayer(
+                    markers: [
+                      Marker(
+                        point: picked!,
+                        width: 40,
+                        height: 40,
+                        child: const Icon(Icons.location_on, color: Colors.red, size: 40),
+                      ),
+                    ],
+                  ),
+              ],
+            ),
+          ),
         ],
       ),
       floatingActionButton: picked != null
           ? FloatingActionButton.extended(
-              label: const Text('Confirm'),
-              icon: const Icon(Icons.check),
-              onPressed: () {
-                widget.onSelected(picked!);
-                Navigator.of(context).pop();
-              },
-            )
+        label: const Text('Confirm'),
+        icon: const Icon(Icons.check),
+        onPressed: () {
+          widget.onSelected(picked!);
+          Navigator.of(context).pop();
+        },
+      )
           : null,
     );
   }

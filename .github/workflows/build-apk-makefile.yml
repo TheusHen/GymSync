@@ -1,4 +1,4 @@
-name: Build APK, Upload to BrowserStack App Automate and Collect Results
+name: Build APK
 
 on:
   push:
@@ -26,11 +26,6 @@ jobs:
           echo "$PWD/flutter/bin" >> $GITHUB_PATH
           export PATH="$PWD/flutter/bin:$PATH"
           flutter --version
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v3
-        with:
-          node-version: '22'
 
       - name: Verify environments
         run: |

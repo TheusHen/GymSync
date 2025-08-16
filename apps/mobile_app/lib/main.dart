@@ -25,20 +25,54 @@ void main() async {
   }
   themeModeNotifier.value = initialTheme;
 
-  await FlutterBackground.initialize(
-    androidConfig: const FlutterBackgroundAndroidConfig(
-      notificationTitle: "GymSync Running",
-      notificationText: "Your workout is being monitored in the background.",
-      enableWifiLock: true,
-    ),
-  );
-  await FlutterBackground.enableBackgroundExecution();
+  runApp(RestartWidget(child: const MyApp()));
+}
 
-  runApp(const MyApp());
+class RestartWidget extends StatefulWidget {
+  final Widget child;
+  const RestartWidget({super.key, required this.child});
+
+  static void restartApp(BuildContext context) {
+    final _RestartWidgetState? state = context.findAncestorStateOfType<_RestartWidgetState>();
+    state?.restartApp();
+  }
+
+  @override
+  State<RestartWidget> createState() => _RestartWidgetState();
+}
+
+class _RestartWidgetState extends State<RestartWidget> {
+  Key key = UniqueKey();
+
+  void restartApp() {
+    setState(() {
+      key = UniqueKey();
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return KeyedSubtree(
+      key: key,
+      child: widget.child,
+    );
+  }
 }
 
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
+
+  Future<void> handleBackgroundExecution(BuildContext context) async {
+    await FlutterBackground.initialize(
+      androidConfig: const FlutterBackgroundAndroidConfig(
+        notificationTitle: "GymSync Running",
+        notificationText: "Your workout is being monitored in the background.",
+        enableWifiLock: true,
+      ),
+    );
+    await FlutterBackground.enableBackgroundExecution();
+    RestartWidget.restartApp(context);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -51,7 +85,11 @@ class MyApp extends StatelessWidget {
           darkTheme: AppTheme.dark,
           themeMode: mode,
           navigatorKey: navigatorKey,
-          home: const SplashScreen(),
+          home: SplashScreen(
+            onPermissionsGranted: () async {
+              await handleBackgroundExecution(context);
+            },
+          ),
           debugShowCheckedModeBanner: false,
         );
       },
