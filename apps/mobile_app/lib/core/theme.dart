@@ -1,24 +1,22 @@
 import 'package:flutter/material.dart';
 
 class AppColors {
-  // Primary brand colors
   static const MaterialColor primary = MaterialColor(
-    0xFF3D5AFE, // Gym blue - more energetic than default blue
+    0xFF3D5AFE,
     <int, Color>{
       50: Color(0xFFE8EAFF),
       100: Color(0xFFC0CCFF),
       200: Color(0xFF94A9FF),
       300: Color(0xFF6885FF),
       400: Color(0xFF4D6AFF),
-      500: Color(0xFF3D5AFE), // Primary color
+      500: Color(0xFF3D5AFE),
       600: Color(0xFF3751E8),
       700: Color(0xFF2F45CC),
       800: Color(0xFF273AB3),
       900: Color(0xFF1A2787),
     },
   );
-  
-  // Secondary accent color - energetic orange for highlights
+
   static const MaterialColor accent = MaterialColor(
     0xFFFF6D00,
     <int, Color>{
@@ -29,19 +27,15 @@ class AppColors {
       400: Color(0xFFFFA726),
       500: Color(0xFFFF9800),
       600: Color(0xFFFF8F00),
-      700: Color(0xFFFF6D00), // Accent color
+      700: Color(0xFFFF6D00),
       800: Color(0xFFFF5722),
       900: Color(0xFFE65100),
     },
   );
-  
-  // Success color - for completed workouts
+
   static const Color success = Color(0xFF4CAF50);
-  
-  // Error color - for errors or stopped workouts
   static const Color error = Color(0xFFF44336);
-  
-  // Background colors
+
   static const Color lightBackground = Color(0xFFF5F7FA);
   static const Color darkBackground = Color(0xFF121212);
 }

@@ -12,7 +12,6 @@ class LocationService {
       builder: (_) => _MapPickerScreen(onSelected: (latlng) => selected = latlng),
     ));
     if (selected != null) {
-      // Save selection in SharedPreferences
       final prefs = await SharedPreferences.getInstance();
       await prefs.setDouble('gym_lat', selected!.latitude);
       await prefs.setDouble('gym_lng', selected!.longitude);
@@ -179,13 +178,7 @@ class _MapPickerScreenState extends State<_MapPickerScreen> {
               ),
               children: [
                 TileLayer(
-                  urlTemplate: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-                  tileProvider: NetworkTileProvider(),
-                  userAgentPackageName: 'com.example.mobile_app',
-                ),
-                TileLayer(
-                  urlTemplate: 'https://services.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',
-                  tileProvider: NetworkTileProvider(),
+                  urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                   userAgentPackageName: 'com.example.mobile_app',
                 ),
                 // Current location marker (blue dot)

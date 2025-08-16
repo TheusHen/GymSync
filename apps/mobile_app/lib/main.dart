@@ -30,7 +30,8 @@ class RestartWidget extends StatefulWidget {
   const RestartWidget({super.key, required this.child});
 
   static void restartApp(BuildContext context) {
-    final _RestartWidgetState? state = context.findAncestorStateOfType<_RestartWidgetState>();
+    final _RestartWidgetState? state =
+    context.findAncestorStateOfType<_RestartWidgetState>();
     state?.restartApp();
   }
 
@@ -59,18 +60,6 @@ class _RestartWidgetState extends State<RestartWidget> {
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
-  Future<void> handleBackgroundExecution(BuildContext context) async {
-    await FlutterBackground.initialize(
-      androidConfig: const FlutterBackgroundAndroidConfig(
-        notificationTitle: "GymSync Running",
-        notificationText: "Your workout is being monitored in the background.",
-        enableWifiLock: true,
-      ),
-    );
-    await FlutterBackground.enableBackgroundExecution();
-    RestartWidget.restartApp(context);
-  }
-
   @override
   Widget build(BuildContext context) {
     return ValueListenableBuilder<ThemeMode>(
@@ -82,7 +71,7 @@ class MyApp extends StatelessWidget {
           darkTheme: AppTheme.dark,
           themeMode: mode,
           navigatorKey: navigatorKey,
-          home: SplashScreen(),
+          home: const SplashScreen(),
           debugShowCheckedModeBanner: false,
         );
       },
