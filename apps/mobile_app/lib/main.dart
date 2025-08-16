@@ -1,13 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_background/flutter_background.dart';
-import 'screens/home_screen.dart';
-import 'core/theme.dart';
 import 'screens/splash_screen.dart';
-import 'screens/settings_screen.dart';
+import 'core/theme.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 final themeModeNotifier = ValueNotifier<ThemeMode>(ThemeMode.system);
-
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 void main() async {
@@ -85,11 +82,7 @@ class MyApp extends StatelessWidget {
           darkTheme: AppTheme.dark,
           themeMode: mode,
           navigatorKey: navigatorKey,
-          home: SplashScreen(
-            onPermissionsGranted: () async {
-              await handleBackgroundExecution(context);
-            },
-          ),
+          home: SplashScreen(),
           debugShowCheckedModeBanner: false,
         );
       },
