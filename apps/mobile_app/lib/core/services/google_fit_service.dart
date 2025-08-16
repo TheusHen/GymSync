@@ -22,7 +22,6 @@ class GoogleFitService {
     HealthDataType.ACTIVE_ENERGY_BURNED,
     HealthDataType.DISTANCE_DELTA,
     HealthDataType.HEART_RATE,
-    HealthDataType.MOVE_MINUTES,
   ];
 
   static Future<bool> requestPermission({bool preferSamsung = false}) async {
@@ -146,15 +145,7 @@ class GoogleFitService {
         return totalSteps > 20;
       }
       
-      // Also check move minutes as a fallback
-      final moveMinutes = await _health.getHealthDataFromTypes(
-        types: [HealthDataType.MOVE_MINUTES],
-        startTime: fiveMinutesAgo,
-        endTime: now,
-      );
-      
-      // If there are any move minutes in the last 5 minutes, consider it walking
-      return moveMinutes.isNotEmpty;
+      return false;
     } catch (e) {
       debugPrint('Error checking if walking: $e');
       return false;

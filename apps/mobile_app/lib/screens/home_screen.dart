@@ -70,7 +70,7 @@ class _HomeScreenState extends State<HomeScreen> {
       try {
         // Use a lower accuracy for background monitoring to save battery
         final pos = await Geolocator.getCurrentPosition(
-          desiredAccuracy: LocationAccuracy.balanced,
+          desiredAccuracy: LocationAccuracy.low,
           timeLimit: const Duration(seconds: 10),
         ).timeout(
           const Duration(seconds: 15),
@@ -252,15 +252,12 @@ class _HomeScreenState extends State<HomeScreen> {
         androidConfig: FlutterBackgroundAndroidConfig(
           notificationTitle: "GymSync Active",
           notificationText: "Tracking your workout and location in the background.",
-          notificationImportance: AndroidNotificationImportance.Default,
+          notificationImportance: AndroidNotificationImportance.low,
           notificationIcon: 'ic_notification',
           enableWifiLock: true,
           showBadge: true,
-          // Use a unique notification ID to avoid conflicts
-          notificationChannelId: 'com.example.mobile_app.background',
-          // More descriptive channel name
+          // Removido: notificationChannelId: 'com.example.mobile_app.background',
           notificationChannelName: 'Background Service',
-          // More descriptive channel description
           notificationChannelDescription: 'Keeps the app running in the background to track workouts and location.',
         ),
       );
@@ -274,15 +271,13 @@ class _HomeScreenState extends State<HomeScreen> {
       debugPrint('Error enabling background execution: $e');
     }
     
-    // If background execution couldn't be enabled, show a notification to inform the user
+    // Se não conseguir habilitar, mostra notificação
     if (!backgroundEnabled) {
       _showCustomNotification(
         'Background Execution Issue',
         'GymSync may not work properly in the background. Please check app permissions.'
       );
     }
-    
-    return backgroundEnabled;
   }
 
   @override
@@ -614,3 +609,4 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 }
+
