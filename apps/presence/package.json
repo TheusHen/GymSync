@@ -3,7 +3,7 @@
   "description": "Show your gym workouts on Discord with Rich Presence.",
   "author": {
     "name": "TheusHen",
-    "email": "codelong@proton.me"
+    "email": "dev@theushen.me"
   },
   "version": "1.0.0",
   "homepage": "https://github.com/TheusHen/GymSync",
@@ -14,6 +14,7 @@
     "build": "electron-builder"
   },
   "dependencies": {
+    "@electron/remote": "^2.1.3",
     "auto-launch": "^5.0.6",
     "axios": "^1.6.0",
     "discord-rich-presence": "^0.0.8",
@@ -33,18 +34,32 @@
     "directories": {
       "output": "dist"
     },
+    "files": [
+      "assets/**/*",
+      "build/icon.png",
+      "main.js",
+      "package.json"
+    ],
     "win": {
       "target": "portable",
       "icon": "build/icon.png"
     },
     "linux": {
-      "target": ["AppImage", "deb", "dir"],
+      "target": [
+        "AppImage",
+        "deb",
+        "dir"
+      ],
       "icon": "build/icon.png",
       "category": "Utility",
-      "maintainer": "TheusHen <codelong@proton.me>"
+      "maintainer": "TheusHen <dev@theushen.me>"
     },
     "mac": {
-      "target": ["dmg", "zip", "dir"],
+      "target": [
+        "dmg",
+        "zip",
+        "dir"
+      ],
       "icon": "build/icon.png",
       "category": "public.app-category.utilities"
     }

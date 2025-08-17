@@ -3,7 +3,7 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
 class BackendService {
-  static const String _baseUrl = 'https://gymsync-backend-orcin.vercel.app/api/v1/status'; // your backend URL here
+  static const String _baseUrl = 'https://gymsync-backend-orcin.vercel.app/api/v1'; // your backend URL here
   static const String _apiKey = 'dev-key'; // default dev key, change for production
 
   static Map<String, String> get _headers => {

@@ -1,9 +1,9 @@
 /**
- * GymSync Presence Desktop Client (MacOS compatible)
+ * GymSync Presence Desktop Client (Cross-platform: Windows, MacOS, Linux)
  * Uses Electron + discord-rpc + Discord OAuth2
- * Supports custom RPC title and dynamic largeImageKey based on activity
- * Now starts automatically when the PC boots (auto-launch enabled)
+ * Includes detailed logging for debugging purposes
  */
+
 require('dotenv').config();
 const clientId = "1391871101734223912";
 
@@ -12,12 +12,37 @@ const prompt = require('electron-prompt');
 const DiscordRPC = require("discord-rpc");
 const axios = require("axios");
 const path = require("path");
+const fs = require("fs");
 const AutoLaunch = require('auto-launch');
-const os = require('os');
+const os = require("os");
 
 // === Configuration ===
-const backendUrl = process.env.BACKEND_URL || "http://localhost:3000/api/v1/status";
-const redirectUri = process.env.REDIRECT_URI || "http://localhost:3000/success";
+const backendUrl = process.env.BACKEND_URL || "https://gymsync-backend-orcin.vercel.app/api/v1/status";
+const redirectUri = process.env.REDIRECT_URI || "https://gymsync-backend-orcin.vercel.app/success";
+const logFilePath = path.join(app.getPath("userData"), "gymsync-debug.log");
+
+// === Ensure log file ===
+function writeLog(message, isError = false) {
+  const ts = new Date().toISOString();
+  const prefix = isError ? "[ERR]" : "[INFO]";
+  const line = `[${ts}]${prefix} ${message}\n`;
+
+  // Console
+  isError ? console.error(line) : console.log(line);
+
+  // File
+  try {
+    fs.appendFileSync(logFilePath, line, { encoding: "utf8" });
+  } catch (err) {
+    console.error("Failed to write log file:", err);
+  }
+}
+function log(msg) { writeLog(msg, false); }
+function logError(msg) { writeLog(msg, true); }
+
+log("==== GymSync Presence App started ====");
+log(`Platform: ${process.platform}, Arch: ${process.arch}, Electron version: ${process.versions.electron}`);
+log(`Log file created at: ${logFilePath}`);
 
 // === Customizable RPC title ===
 let rpcTitle = "GymSync";
@@ -53,19 +78,16 @@ function getImageKeyForActivity(activity) {
   return "gymsync_logo";
 }
 
-function log(...args) {
-  const ts = new Date().toISOString();
-  console.log(`[${ts}]`, ...args);
-}
-function logError(...args) {
-  const ts = new Date().toISOString();
-  console.error(`[${ts}][ERR]`, ...args);
-}
-
 // === Auto-launch configuration ===
+let exePath = process.execPath;
+if (process.platform === "win32") {
+  // Force exe path for packaged app on Windows
+  const exeName = "GymSync Presence.exe";
+  exePath = path.join(process.cwd(), exeName);
+}
 const appLauncher = new AutoLaunch({
-  name: 'GymSync Presence',
-  path: process.execPath, // MacOS: process.execPath points to the correct bundle
+  name: "GymSync Presence",
+  path: exePath,
   isHidden: true,
 });
 
@@ -73,87 +95,94 @@ function ensureAutoLaunch() {
   appLauncher.isEnabled().then((isEnabled) => {
     if (!isEnabled) {
       appLauncher.enable()
-          .then(() => log("Auto-launch enabled! The app will start with the system."))
-          .catch((err) => logError("Error enabling auto-launch:", err));
+          .then(() => log("Auto-launch enabled: the app will start with the system."))
+          .catch((err) => logError("Error enabling auto-launch: " + err));
     } else {
       log("Auto-launch is already enabled.");
     }
-  }).catch((err) => logError("Error checking auto-launch:", err));
+  }).catch((err) => logError("Error checking auto-launch: " + err));
 }
 
 function getTrayIconPath() {
   if (process.platform === "darwin") {
-    return path.join(__dirname, "assets", "tray-icon-mac.png"); // provide this icon in assets
+    return path.join(__dirname, "assets", "tray-icon-mac.png");
   }
   return path.join(__dirname, "assets", "tray-icon.png");
 }
 
 function createTray() {
-  let iconPath = getTrayIconPath();
-  let trayIcon = nativeImage.createFromPath(iconPath);
+  try {
+    let iconPath = getTrayIconPath();
+    let trayIcon = nativeImage.createFromPath(iconPath);
 
-  if (trayIcon.isEmpty()) {
-    trayIcon = nativeImage.createEmpty();
-  } else if (process.platform === 'darwin') {
-    trayIcon = trayIcon.resize({ width: 18, height: 18 });
-    trayIcon.setTemplateImage(true);
-  }
+    if (trayIcon.isEmpty()) {
+      logError("Tray icon not found at " + iconPath);
+      trayIcon = nativeImage.createEmpty();
+    } else if (process.platform === "darwin") {
+      trayIcon = trayIcon.resize({ width: 18, height: 18 });
+      trayIcon.setTemplateImage(true);
+    }
 
-  tray = new Tray(trayIcon);
-  const trayMenu = Menu.buildFromTemplate([
-    {
-      label: "Show Window",
-      click: () => {
+    tray = new Tray(trayIcon);
+    const trayMenu = Menu.buildFromTemplate([
+      {
+        label: "Show Window",
+        click: () => {
+          if (mainWindow) {
+            mainWindow.show();
+          } else {
+            createOAuthWindow();
+          }
+        }
+      },
+      {
+        label: "Set RPC Title...",
+        click: async () => {
+          setCustomRPCTitle();
+        }
+      },
+      { type: "separator" },
+      {
+        label: "Quit",
+        click: () => {
+          app.quit();
+        }
+      }
+    ]);
+    tray.setToolTip("GymSync Presence");
+    tray.setContextMenu(trayMenu);
+
+    if (process.platform === "darwin") {
+      tray.on("click", () => {
         if (mainWindow) {
           mainWindow.show();
         } else {
           createOAuthWindow();
         }
-      }
-    },
-    {
-      label: "Set RPC Title...",
-      click: async () => {
-        setCustomRPCTitle();
-      }
-    },
-    { type: "separator" },
-    {
-      label: "Quit",
-      click: () => {
-        app.quit();
-      }
+      });
     }
-  ]);
-  tray.setToolTip("GymSync Presence");
-  tray.setContextMenu(trayMenu);
-
-  if (process.platform === "darwin") {
-    tray.on('click', () => {
-      if (mainWindow) {
-        mainWindow.show();
-      } else {
-        createOAuthWindow();
-      }
-    });
+    log("Tray created successfully.");
+  } catch (err) {
+    logError("Error creating tray: " + err);
   }
 }
 
 app.whenReady().then(() => {
-  log("App started.");
+  log("Electron app ready event fired.");
   ensureAutoLaunch();
   createTray();
   createOAuthWindow();
 });
 
+// === Prompt for RPC title ===
 async function setCustomRPCTitle() {
   const win = mainWindow || BrowserWindow.getFocusedWindow();
   const result = await prompt({
-    title: 'Set RPC Title',
-    label: 'Enter a custom RPC title (default: GymSync):',
+    title: "Set RPC Title",
+    label: "Enter a custom RPC title (default: GymSync):",
     value: rpcTitle,
-    inputAttrs: { type: 'text' },
-    type: 'input',
+    inputAttrs: { type: "text" },
+    type: "input",
     resizable: false,
     width: 400,
     height: 150,
@@ -167,11 +196,14 @@ async function setCustomRPCTitle() {
   }
 }
 
+// === OAuth Window ===
 function createOAuthWindow() {
   if (mainWindow) {
     mainWindow.show();
     return;
   }
+
+  log("Creating OAuth window...");
 
   mainWindow = new BrowserWindow({
     width: 600,
@@ -187,21 +219,21 @@ function createOAuthWindow() {
   });
 
   mainWindow.on("close", (event) => {
-    if (process.platform === "darwin" && !app.isQuitting) {
+    if (!app.isQuitting) {
       event.preventDefault();
       mainWindow.hide();
-    } else if (!app.isQuitting) {
-      event.preventDefault();
-      mainWindow.hide();
+      log("Main window hidden instead of closed.");
     }
   });
 
   mainWindow.on("closed", () => {
+    log("Main window destroyed.");
     mainWindow = null;
   });
 
-  mainWindow.once('ready-to-show', () => {
+  mainWindow.once("ready-to-show", () => {
     mainWindow.show();
+    log("OAuth window displayed.");
   });
 
   const scope = "identify";
@@ -210,6 +242,7 @@ function createOAuthWindow() {
       redirectUri
   )}&response_type=${responseType}&scope=${scope}`;
 
+  log("Loading OAuth URL: " + oauthUrl);
   mainWindow.loadURL(oauthUrl);
 
   const wc = mainWindow.webContents;
@@ -218,27 +251,29 @@ function createOAuthWindow() {
   wc.on("will-redirect", (e, url) => tryHandle(url));
   wc.on("did-navigate-in-page", (e, url) => tryHandle(url));
   wc.on("will-navigate", (e, url) => tryHandle(url));
-  wc.on("did-get-redirect-request", (e, oldURL, newURL) => tryHandle(newURL));
   wc.on("did-redirect-navigation", (e, url) => tryHandle(url));
-  wc.on("did-finish-load", () => {});
   wc.on("did-fail-load", (e, code, desc, url) => {
-    logError("Failed to load page:", code, desc, url);
+    logError(`Failed to load page: ${code} - ${desc} (${url})`);
   });
 }
 
 async function handleOAuthRedirect(url) {
   if (!url.startsWith(redirectUri)) return;
+  log("OAuth redirect received: " + url);
+
   const fragment = url.split("#")[1];
   if (!fragment) {
     logError("No token fragment in redirect URL.");
     return;
   }
+
   const params = new URLSearchParams(fragment);
   access_token = params.get("access_token");
   if (!access_token) {
     logError("Access token not found.");
     return;
   }
+
   try {
     const user = await axios.get("https://discord.com/api/users/@me", {
       headers: { Authorization: `Bearer ${access_token}` },
@@ -250,7 +285,7 @@ async function handleOAuthRedirect(url) {
       if (mainWindow) mainWindow.hide();
     }, 1500);
   } catch (err) {
-    logError("Error getting Discord user data:", err?.message);
+    logError("Error getting Discord user data: " + err?.message);
   }
 }
 
@@ -262,7 +297,7 @@ function startRPCOnce() {
         log("Discord RPC logged in.");
         startRPC();
       })
-      .catch(logError);
+      .catch(err => logError("RPC login error: " + err));
 }
 startRPCOnce.started = false;
 
@@ -281,6 +316,7 @@ function startRPC() {
 
   rpcLoop = setInterval(async () => {
     if (!discord_id) return;
+    log(`RPC tick - checking backend: ${backendUrl}/${discord_id}`);
 
     try {
       const res = await axios.get(`${backendUrl}/${discord_id}`);
@@ -293,20 +329,16 @@ function startRPC() {
 
       let activity = status.activity;
       let detail = activity;
-      if (status.paused) {
-        detail = `[⏸️ Paused] ${activity}`;
-      }
+      if (status.paused) detail = `[⏸️ Paused] ${activity}`;
 
-      // Fix timer: calculate startTimestamp ONLY when activity changes or first time
+      // Timer fix
       if (lastActivity !== activity || localStartTimestamp === null) {
         localStartTimestamp = Math.floor(Date.now() / 1000) - status.time;
         lastActivity = activity;
       }
       const startTimestamp = status.paused ? undefined : localStartTimestamp;
-
       const largeImageKey = getImageKeyForActivity(activity);
 
-      // DiscordRPC expects partyId, partySize, partyMax at root level
       await rpc.setActivity({
         state: rpcTitle,
         details: detail,
@@ -322,16 +354,15 @@ function startRPC() {
       });
 
       lastPresence = true;
-      log(`Updated presence: ${rpcTitle} | ${detail} | image: ${largeImageKey}`);
-
+      log(`Presence updated: ${rpcTitle} | ${detail} | image: ${largeImageKey}`);
     } catch (err) {
       if (err.response && err.response.status === 404) {
         clearPresence();
         return;
       }
-      logError("Error updating backend status:", err?.message || err);
+      logError("Error updating backend status: " + (err?.message || err));
     }
-  }, 5000);
+  }, 1000);
 }
 
 app.on("activate", () => {
@@ -342,13 +373,15 @@ app.on("activate", () => {
   }
 });
 
-app.on("window-all-closed", (e) => {
-  if (process.platform !== "darwin") {
-    app.quit();
-  }
-});
-
 app.on("before-quit", () => {
   app.isQuitting = true;
   if (rpcLoop) clearInterval(rpcLoop);
+  tray?.destroy();
+  log("App quitting...");
+});
+
+app.on("window-all-closed", () => {
+  if (process.platform !== "darwin") {
+    app.quit();
+  }
 });
