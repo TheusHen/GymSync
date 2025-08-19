@@ -202,9 +202,12 @@ app.get("/success", (req, res) => {
   `);
 });
 
-app.listen(PORT, () => {
-  console.log(`✅ GymSync Backend running on http://localhost:${PORT}`);
-});
+// Only start the server if this file is run directly (not imported)
+if (require.main === module) {
+  app.listen(PORT, () => {
+    console.log(`✅ GymSync Backend running on http://localhost:${PORT}`);
+  });
+}
 
 // Export for testing
 module.exports = { app, statusMap };
