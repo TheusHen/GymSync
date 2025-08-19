@@ -6,6 +6,8 @@ jest.mock('electron', () => ({
     whenReady: jest.fn().mockResolvedValue(),
     quit: jest.fn(),
     isQuitting: false,
+    getPath: jest.fn().mockReturnValue('/tmp'),
+    on: jest.fn(),
   },
   BrowserWindow: jest.fn().mockImplementation(() => ({
     loadURL: jest.fn(),
@@ -26,12 +28,26 @@ jest.mock('electron', () => ({
   dialog: {
     showMessageBox: jest.fn(),
   },
+  nativeImage: {
+    createFromPath: jest.fn().mockReturnValue({ isEmpty: () => false }),
+    createEmpty: jest.fn().mockReturnValue({}),
+  },
 }));
 
 jest.mock('electron-prompt', () => jest.fn().mockResolvedValue('GymSync Test'));
 jest.mock('discord-rich-presence', () => jest.fn().mockReturnValue({
   updatePresence: jest.fn(),
   clearPresence: jest.fn(),
+}));
+jest.mock('discord-rpc', () => ({
+  register: jest.fn(),
+  Client: jest.fn().mockImplementation(() => ({
+    ready: false,
+    on: jest.fn(),
+    login: jest.fn().mockResolvedValue(),
+    setActivity: jest.fn().mockResolvedValue(),
+    clearActivity: jest.fn().mockResolvedValue(),
+  })),
 }));
 jest.mock('axios', () => ({
   get: jest.fn().mockResolvedValue({ data: { id: '123456789', username: 'testuser', discriminator: '1234' } }),
@@ -42,6 +58,9 @@ jest.mock('auto-launch', () => {
     enable: jest.fn().mockResolvedValue(),
   }));
 });
+jest.mock('fs', () => ({
+  appendFileSync: jest.fn(),
+}));
 
 // Import the functions to test
 // Note: In a real test, we would need to restructure the main.js file to export these functions
