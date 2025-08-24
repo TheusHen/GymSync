@@ -3,12 +3,22 @@ import 'package:flutter_background/flutter_background.dart';
 import 'screens/splash_screen.dart';
 import 'core/theme.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'core/services/background_location_service.dart';
+import 'core/services/foreground_workout_service.dart';
+import 'core/services/app_state_service.dart';
 
 final themeModeNotifier = ValueNotifier<ThemeMode>(ThemeMode.system);
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Initialize background services
+  await BackgroundLocationService.initialize();
+  ForegroundWorkoutService.initialize();
+  
+  // Initialize app state monitoring
+  AppStateService().initialize();
 
   final prefs = await SharedPreferences.getInstance();
   final themeValue = prefs.getString('theme_mode');

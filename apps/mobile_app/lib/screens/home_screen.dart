@@ -8,6 +8,8 @@ import '../widgets/animated_button.dart';
 import '../core/services/backend_service.dart';
 import '../core/services/google_fit_service.dart';
 import '../core/services/notification_service.dart';
+import '../core/services/background_location_service.dart';
+import '../core/services/foreground_workout_service.dart';
 import 'settings_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:latlong2/latlong.dart';
@@ -51,79 +53,21 @@ class _HomeScreenState extends State<HomeScreen> {
       await _requestPermissions();
       await _startBackgroundMode();
       await _loadGymLocation();
-      _startPersistentBackgroundLocationMonitor();
+      
+      // Initialize background services
+      await BackgroundLocationService.initialize();
+      ForegroundWorkoutService.initialize();
+      
+      // Start background location monitoring
+      await BackgroundLocationService().startLocationMonitoring();
+      
       if (await Permission.ignoreBatteryOptimizations.isDenied) {
         await Permission.ignoreBatteryOptimizations.request();
       }
     }
   }
 
-  void _startPersistentBackgroundLocationMonitor() {
-    Timer.periodic(const Duration(seconds: 30), (_) async {
-      final prefs = await SharedPreferences.getInstance();
-      final lat = prefs.getDouble('gym_lat');
-      final lng = prefs.getDouble('gym_lng');
-      if (lat == null || lng == null) return;
-      final gymLoc = LatLng(lat, lng);
 
-      try {
-        final pos = await Geolocator.getCurrentPosition(
-          desiredAccuracy: LocationAccuracy.low,
-          timeLimit: const Duration(seconds: 10),
-        ).timeout(
-          const Duration(seconds: 15),
-          onTimeout: () {
-            throw TimeoutException('Location request timed out in background');
-          },
-        );
-        final Distance distance = Distance();
-        final double dist = distance(
-          LatLng(pos.latitude, pos.longitude),
-          gymLoc,
-        );
-        final bool inside = dist <= gymRadiusMeters;
-        final bool wasInGym = inGym;
-        if (mounted) {
-          setState(() {
-            inGym = inside;
-          });
-        } else {
-          inGym = inside;
-        }
-        final data = await BackendService.getStatus();
-        String currentActivity = data?['status']?['activity'] ?? 'unknown';
-        bool isRunning = (data?['status']?['state'] ?? 'paused') == 'active';
-        if (inside && (!isRunning || currentActivity != "Gym")) {
-          await BackendService.start("Gym");
-          if (!wasInGym && inside) {
-            _showGymArrivalNotification();
-          }
-        }
-        if (!inside) {
-          _checkAndStartActiveExercise();
-        }
-      } catch (e) {
-        try {
-          final lastPos = await Geolocator.getLastKnownPosition();
-          if (lastPos != null) {
-            final Distance distance = Distance();
-            final double dist = distance(
-              LatLng(lastPos.latitude, lastPos.longitude),
-              gymLoc,
-            );
-            final bool inside = dist <= gymRadiusMeters;
-            if (mounted) {
-              setState(() {
-                inGym = inside;
-              });
-            } else {
-              inGym = inside;
-            }
-          }
-        } catch (_) {}
-      }
-    });
-  }
 
   Future<void> _setupApp() async {
     await _requestPermissions();
@@ -160,11 +104,21 @@ class _HomeScreenState extends State<HomeScreen> {
     if (inGym || (running && activity == activityType)) return;
     try {
       await BackendService.start(activityType);
+      
+      // Store workout start time for foreground service
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('current_activity', activityType);
+      await prefs.setInt('workout_start_time', DateTime.now().millisecondsSinceEpoch);
+      
       setState(() {
         activity = activityType;
         running = true;
         elapsed = Duration.zero;
       });
+      
+      // Start foreground service for continuous tracking
+      await ForegroundWorkoutService().startWorkoutTracking(activityType);
+      
       _startStatusUpdates();
       _maybeUpdateNotification();
       if (activityType == "Walking") {
@@ -205,6 +159,9 @@ class _HomeScreenState extends State<HomeScreen> {
     if (await Permission.location.isDenied) {
       await Permission.location.request();
     }
+    if (await Permission.locationAlways.isDenied) {
+      await Permission.locationAlways.request();
+    }
     if (await Permission.activityRecognition.isDenied) {
       await Permission.activityRecognition.request();
     }
@@ -243,6 +200,11 @@ class _HomeScreenState extends State<HomeScreen> {
     _locationTimer?.cancel();
     _statusTimer?.cancel();
     NotificationService().cancel();
+    
+    // Stop background services
+    BackgroundLocationService().stopLocationMonitoring();
+    ForegroundWorkoutService().stopWorkoutTracking();
+    
     FlutterBackground.disableBackgroundExecution();
     super.dispose();
   }
@@ -268,7 +230,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void _startLocationMonitoring() {
     _locationTimer?.cancel();
-    _locationTimer = Timer.periodic(const Duration(seconds: 1), (_) async {
+    _locationTimer = Timer.periodic(const Duration(seconds: 5), (_) async {
       await _checkIfInGym();
       if (inGym) {
         _startGymFlowIfNeeded();
@@ -291,11 +253,21 @@ class _HomeScreenState extends State<HomeScreen> {
     }
     try {
       await BackendService.start("Gym");
+      
+      // Store workout start time for foreground service
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('current_activity', "Gym");
+      await prefs.setInt('workout_start_time', DateTime.now().millisecondsSinceEpoch);
+      
       setState(() {
         activity = "Gym";
         running = true;
         elapsed = Duration.zero;
       });
+      
+      // Start foreground service for continuous tracking
+      await ForegroundWorkoutService().startWorkoutTracking("Gym");
+      
       _startStatusUpdates();
       _maybeUpdateNotification();
     } catch (_) {
@@ -316,6 +288,14 @@ class _HomeScreenState extends State<HomeScreen> {
       });
       await BackendService.start(activity);
       _maybeUpdateNotification();
+      
+      // Update foreground service notification
+      if (ForegroundWorkoutService().isRunning) {
+        await ForegroundWorkoutService().updateWorkoutNotification(
+          activity: activity,
+          elapsed: elapsed,
+        );
+      }
     });
   }
 
@@ -439,12 +419,25 @@ class _HomeScreenState extends State<HomeScreen> {
     setState(() => running = false);
     _stopStatusUpdates();
     NotificationService().cancel();
+    
+    // Stop foreground service when pausing
+    await ForegroundWorkoutService().stopWorkoutTracking();
+    
     await _loadBackendStatus();
   }
 
   void onResume() async {
     await BackendService.resume();
     setState(() => running = true);
+    
+    // Store workout start time for foreground service (accounting for previous elapsed time)
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('current_activity', activity);
+    await prefs.setInt('workout_start_time', DateTime.now().millisecondsSinceEpoch - elapsed.inMilliseconds);
+    
+    // Restart foreground service
+    await ForegroundWorkoutService().startWorkoutTracking(activity);
+    
     _startStatusUpdates();
     _maybeUpdateNotification();
     await _loadBackendStatus();
@@ -459,6 +452,15 @@ class _HomeScreenState extends State<HomeScreen> {
     });
     _stopStatusUpdates();
     NotificationService().cancel();
+    
+    // Stop foreground service when stopping workout
+    await ForegroundWorkoutService().stopWorkoutTracking();
+    
+    // Clear workout data from preferences
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('current_activity');
+    await prefs.remove('workout_start_time');
+    
     await _loadBackendStatus();
   }
 
