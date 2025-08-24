@@ -28,28 +28,38 @@ class BackgroundLocationService {
 
   /// Start periodic location monitoring
   Future<void> startLocationMonitoring() async {
-    await Workmanager().registerPeriodicTask(
-      _locationTaskName,
-      _locationTaskName,
-      frequency: const Duration(minutes: 15), // Minimum allowed by WorkManager
-      constraints: Constraints(
-        networkType: NetworkType.not_required,
-        requiresBatteryNotLow: false,
-        requiresCharging: false,
-        requiresDeviceIdle: false,
-        requiresStorageNotLow: false,
-      ),
-      inputData: <String, dynamic>{
-        'task': 'location_monitor'
-      },
-    );
-    debugPrint('Background location monitoring started');
+    try {
+      await Workmanager().registerPeriodicTask(
+        _locationTaskName,
+        _locationTaskName,
+        frequency: const Duration(minutes: 15), // Minimum allowed by WorkManager
+        constraints: Constraints(
+          networkType: NetworkType.not_required,
+          requiresBatteryNotLow: false,
+          requiresCharging: false,
+          requiresDeviceIdle: false,
+          requiresStorageNotLow: false,
+        ),
+        inputData: <String, dynamic>{
+          'task': 'location_monitor'
+        },
+        existingWorkPolicy: ExistingWorkPolicy.replace, // Replace existing task
+      );
+      debugPrint('Background location monitoring started');
+    } catch (e) {
+      debugPrint('Failed to start background location monitoring: $e');
+      rethrow;
+    }
   }
 
   /// Stop location monitoring
   Future<void> stopLocationMonitoring() async {
-    await Workmanager().cancelByUniqueName(_locationTaskName);
-    debugPrint('Background location monitoring stopped');
+    try {
+      await Workmanager().cancelByUniqueName(_locationTaskName);
+      debugPrint('Background location monitoring stopped');
+    } catch (e) {
+      debugPrint('Failed to stop background location monitoring: $e');
+    }
   }
 }
 
