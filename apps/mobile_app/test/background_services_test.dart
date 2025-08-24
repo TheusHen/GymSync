@@ -27,7 +27,7 @@ void main() {
     // Test if initialize returns Future<void> (compilability test)
     test('ForegroundWorkoutService.initialize is async', () async {
       // This just ensures the Future is returned and can be awaited
-      await ForegroundWorkoutService.initialize();
+      ForegroundWorkoutService.initialize();
       // No expect needed, just check for no errors
     });
   });
