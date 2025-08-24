@@ -56,7 +56,7 @@ class _HomeScreenState extends State<HomeScreen> {
       
       // Initialize background services
       await BackgroundLocationService.initialize();
-      await ForegroundWorkoutService.initialize();
+      ForegroundWorkoutService.initialize();
       
       // Start background location monitoring
       await BackgroundLocationService().startLocationMonitoring();
