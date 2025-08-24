@@ -15,7 +15,7 @@ void main() async {
 
   // Initialize background services
   await BackgroundLocationService.initialize();
-  await ForegroundWorkoutService.initialize();
+  ForegroundWorkoutService.initialize();
   
   // Initialize app state monitoring
   AppStateService().initialize();
