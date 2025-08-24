@@ -15,6 +15,7 @@ dependencies:
   flutter_svg: ^2.0.10
   confetti: ^0.7.0
   health: ^13.1.1
+  samsung_health_handler: ^1.1.0
   flutter_map: ^8.1.1
   latlong2: ^0.9.1
   geolocator: ^11.0.0

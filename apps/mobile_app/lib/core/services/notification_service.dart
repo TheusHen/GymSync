@@ -48,6 +48,7 @@ class NotificationService {
       importance: Importance.max,
       priority: Priority.high,
       ongoing: true,
+      autoCancel: false,
       onlyAlertOnce: true,
       icon: 'ic_notification',
       actions: <AndroidNotificationAction>[
@@ -63,6 +64,10 @@ class NotificationService {
         ),
       ],
       category: AndroidNotificationCategory.service,
+      showWhen: true,
+      when: DateTime.now().millisecondsSinceEpoch,
+      usesChronometer: true,
+      chronometerCountDown: false,
     );
     await _plugin.show(
       1,

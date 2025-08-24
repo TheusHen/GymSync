@@ -3,7 +3,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../widgets/animated_button.dart';
 import '../core/services/discord_service.dart';
 import '../core/services/location_service.dart';
-import '../core/services/google_fit_service.dart';
+import '../core/services/health_service.dart';
 import 'home_screen.dart';
 import 'package:device_info_plus/device_info_plus.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -104,7 +104,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     if (!activity.isGranted || !sensors.isGranted || !location.isGranted || !notificationGranted) {
       return false;
     }
-    return await GoogleFitService().checkAllPermissionsGranted();
+    return await HealthService().checkAllPermissionsGranted();
   }
 
   Future<void> connectDiscord() async {
@@ -133,7 +133,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   Future<void> enableHealth() async {
     if (requestingHealth) return;
     setState(() => requestingHealth = true);
-    final granted = await GoogleFitService.requestPermission(
+    final granted = await HealthService.requestPermission(
       preferSamsung: isSamsung,
     );
     await _refreshHealthStatus();

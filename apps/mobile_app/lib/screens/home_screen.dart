@@ -6,7 +6,7 @@ import '../widgets/circular_timer.dart';
 import '../widgets/discord_status_indicator.dart';
 import '../widgets/animated_button.dart';
 import '../core/services/backend_service.dart';
-import '../core/services/google_fit_service.dart';
+import '../core/services/health_service.dart';
 import '../core/services/notification_service.dart';
 import '../core/services/background_location_service.dart';
 import '../core/services/foreground_workout_service.dart';
@@ -77,6 +77,7 @@ class _HomeScreenState extends State<HomeScreen> {
     await _loadGymLocation();
     await _checkIfInGym();
     await _loadBackendStatus();
+    await _restoreWorkoutState(); // Restore any ongoing workout
     if (inGym) {
       _startGymFlowIfNeeded();
     } else {
@@ -86,12 +87,37 @@ class _HomeScreenState extends State<HomeScreen> {
     _startActivityMonitoring();
   }
 
+  /// Restore workout state from SharedPreferences (important when app resumes)
+  Future<void> _restoreWorkoutState() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final currentActivity = prefs.getString('current_activity');
+      final startTime = prefs.getInt('workout_start_time');
+      
+      if (currentActivity != null && startTime != null) {
+        final now = DateTime.now().millisecondsSinceEpoch;
+        final elapsedMillis = now - startTime;
+        
+        setState(() {
+          activity = currentActivity;
+          running = true;
+          elapsed = Duration(milliseconds: elapsedMillis);
+        });
+        
+        _startStatusUpdates();
+        debugPrint('Restored workout state: $currentActivity, elapsed: ${_formatElapsed(elapsed)}');
+      }
+    } catch (e) {
+      debugPrint('Error restoring workout state: $e');
+    }
+  }
+
   void _startActivityMonitoring() async {
-    final granted = await GoogleFitService.requestPermission();
+    final granted = await HealthService.requestPermission();
     if (!granted) {
       return;
     }
-    GoogleFitService().startActivityMonitoring(
+    HealthService().startActivityMonitoring(
         callback: (activityType, isActive) {
           if (!inGym && (!running || activity != activityType) && isActive) {
             _startActivityTracking(activityType);
@@ -283,9 +309,10 @@ class _HomeScreenState extends State<HomeScreen> {
     _statusTimer?.cancel();
     _statusTimer = Timer.periodic(const Duration(seconds: 1), (_) async {
       if (!running) return;
-      setState(() {
-        elapsed += const Duration(seconds: 1);
-      });
+      
+      // Synchronize elapsed time with stored start time for accuracy
+      await _synchronizeElapsedTime();
+      
       await BackendService.start(activity);
       _maybeUpdateNotification();
       
@@ -297,6 +324,39 @@ class _HomeScreenState extends State<HomeScreen> {
         );
       }
     });
+  }
+
+  /// Synchronize elapsed time with the stored start time from SharedPreferences
+  Future<void> _synchronizeElapsedTime() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final startTime = prefs.getInt('workout_start_time');
+      
+      if (startTime != null) {
+        final now = DateTime.now().millisecondsSinceEpoch;
+        final calculatedElapsed = Duration(milliseconds: now - startTime);
+        
+        // Only update if the difference is significant (to avoid flickering)
+        if ((calculatedElapsed.inSeconds - elapsed.inSeconds).abs() > 2) {
+          setState(() {
+            elapsed = calculatedElapsed;
+          });
+        } else {
+          setState(() {
+            elapsed += const Duration(seconds: 1);
+          });
+        }
+      } else {
+        setState(() {
+          elapsed += const Duration(seconds: 1);
+        });
+      }
+    } catch (e) {
+      debugPrint('Error synchronizing elapsed time: $e');
+      setState(() {
+        elapsed += const Duration(seconds: 1);
+      });
+    }
   }
 
   void _stopStatusUpdates() {
@@ -399,9 +459,9 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _checkAndStartActiveExercise() async {
     if (inGym) return;
-    final granted = await GoogleFitService.requestPermission();
+    final granted = await HealthService.requestPermission();
     if (!granted) return;
-    final exerciseType = await GoogleFitService().getCurrentActiveExerciseType();
+    final exerciseType = await HealthService().getCurrentActiveExerciseType();
     if (exerciseType != null && !running) {
       await BackendService.start(exerciseType);
       setState(() {
