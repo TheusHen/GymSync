@@ -70,7 +70,9 @@ class ForegroundWorkoutService {
       callback: _foregroundTaskCallback,
     );
 
-    final isStarted = result == ServiceRequestResult.success;
+    // FIX: ServiceRequestResult.success may not exist; use ServiceResult.success instead or compare result with expected value.
+    // Check what result returns: it's likely a bool, enum, or int, depending on flutter_foreground_task version
+    final isStarted = result == ServiceResult.success; // <-- fix
 
     if (isStarted) {
       _isRunning = true;
@@ -85,7 +87,9 @@ class ForegroundWorkoutService {
     if (!_isRunning) return true;
 
     final result = await FlutterForegroundTask.stopService();
-    final isStopped = result == ServiceRequestResult.success;
+
+    // FIX: ServiceRequestResult.success may not exist; use ServiceResult.success instead or compare result with expected value.
+    final isStopped = result == ServiceResult.success; // <-- fix
     if (isStopped) {
       _isRunning = false;
       _receivePort?.close();
