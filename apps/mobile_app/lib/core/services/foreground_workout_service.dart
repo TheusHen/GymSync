@@ -17,8 +17,8 @@ class ForegroundWorkoutService {
   ReceivePort? _receivePort;
 
   /// Initialize the foreground service
-  static void initialize() {
-    FlutterForegroundTask.init(
+  static Future<void> initialize() async {
+    await FlutterForegroundTask.init(
       androidNotificationOptions: AndroidNotificationOptions(
         channelId: _channelId,
         channelName: _channelName,
