@@ -2,6 +2,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:gymsync/core/services/notification_service.dart';
 
 void main() {
+  // Inicializa o binding antes de qualquer teste
+  TestWidgetsFlutterBinding.ensureInitialized();
+
   group('Notification Service Tests', () {
     test('NotificationService singleton instance', () {
       final service1 = NotificationService();
