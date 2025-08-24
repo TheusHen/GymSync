@@ -13,7 +13,14 @@ class NotificationService {
 
   bool _enabled = true;
 
+  void _ensureBindingInitialized() {
+    if (WidgetsBinding.instance == null) {
+      WidgetsFlutterBinding.ensureInitialized();
+    }
+  }
+
   Future<void> init({GlobalKey<NavigatorState>? navigatorKey}) async {
+    _ensureBindingInitialized();
     const AndroidInitializationSettings android = AndroidInitializationSettings('ic_notification');
     const DarwinInitializationSettings ios = DarwinInitializationSettings();
 
@@ -41,6 +48,7 @@ class NotificationService {
     required String activity,
   }) async {
     if (!_enabled) return;
+    _ensureBindingInitialized();
     final android = AndroidNotificationDetails(
       'persistent_gym_channel',
       'Persistent Gym',
@@ -65,7 +73,6 @@ class NotificationService {
       ],
       category: AndroidNotificationCategory.service,
       showWhen: true,
-      // Removido o campo 'when'
       usesChronometer: true,
       chronometerCountDown: false,
     );
@@ -79,6 +86,7 @@ class NotificationService {
   }
 
   Future<void> cancel() async {
+    _ensureBindingInitialized();
     await _plugin.cancel(1);
   }
 }
