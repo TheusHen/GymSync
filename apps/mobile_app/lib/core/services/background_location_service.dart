@@ -34,7 +34,7 @@ class BackgroundLocationService {
         _locationTaskName,
         frequency: const Duration(minutes: 15), // Minimum allowed by WorkManager
         constraints: Constraints(
-          networkType: NetworkType.not_required,
+          networkType: NetworkType.notRequired,
           requiresBatteryNotLow: false,
           requiresCharging: false,
           requiresDeviceIdle: false,
@@ -43,7 +43,7 @@ class BackgroundLocationService {
         inputData: <String, dynamic>{
           'task': 'location_monitor'
         },
-        existingWorkPolicy: ExistingWorkPolicy.replace, // Replace existing task
+        existingWorkPolicy: ExistingPeriodicWorkPolicy.replace, // Replace existing task
       );
       debugPrint('Background location monitoring started');
     } catch (e) {
