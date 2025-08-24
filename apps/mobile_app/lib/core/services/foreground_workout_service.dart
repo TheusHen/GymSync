@@ -25,7 +25,7 @@ class ForegroundWorkoutService {
         channelDescription: 'Notification channel for workout tracking',
         channelImportance: NotificationChannelImportance.HIGH,
         priority: NotificationPriority.HIGH,
-        isSticky: true,
+        // Removido isSticky
       ),
       iosNotificationOptions: const IOSNotificationOptions(
         showNotification: true,
@@ -36,7 +36,7 @@ class ForegroundWorkoutService {
         autoRunOnBoot: true,
         allowWakeLock: true,
         allowWifiLock: true,
-        isOnceEvent: false,
+        // Removido isOnceEvent
       ),
     );
   }
