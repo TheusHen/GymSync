@@ -5,13 +5,10 @@ import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'backend_service.dart';
 
-/// Foreground service for continuous workout tracking
-/// This ensures the workout timer continues running even when app is backgrounded
 class ForegroundWorkoutService {
   static const String _channelId = 'workout_tracking_channel';
   static const String _channelName = 'Workout Tracking';
 
-  // Singleton pattern
   static final ForegroundWorkoutService _instance = ForegroundWorkoutService._internal();
   factory ForegroundWorkoutService() => _instance;
   ForegroundWorkoutService._internal();
@@ -20,8 +17,8 @@ class ForegroundWorkoutService {
   ReceivePort? _receivePort;
 
   /// Initialize the foreground service
-  static Future<void> initialize() async {
-    await FlutterForegroundTask.init(
+  static void initialize() {
+    FlutterForegroundTask.init(
       androidNotificationOptions: AndroidNotificationOptions(
         channelId: _channelId,
         channelName: _channelName,
@@ -34,7 +31,7 @@ class ForegroundWorkoutService {
         playSound: false,
       ),
       foregroundTaskOptions: ForegroundTaskOptions(
-        eventAction: ForegroundTaskEventAction.repeat(5000), // Update every 5 seconds
+        eventAction: ForegroundTaskEventAction.repeat(5000),
         autoRunOnBoot: false,
         allowWakeLock: true,
         allowWifiLock: true,
@@ -42,13 +39,11 @@ class ForegroundWorkoutService {
     );
   }
 
-  /// Start foreground workout tracking
   Future<bool> startWorkoutTracking(String activity) async {
     if (_isRunning) {
       await stopWorkoutTracking();
     }
 
-    // Request permissions
     if (!await FlutterForegroundTask.canDrawOverlays) {
       final isGranted = await FlutterForegroundTask.openSystemAlertWindowSettings();
       if (!isGranted) {
@@ -56,14 +51,12 @@ class ForegroundWorkoutService {
       }
     }
 
-    // Request notification permission
     final NotificationPermission notificationPermissionStatus =
         await FlutterForegroundTask.checkNotificationPermission();
     if (notificationPermissionStatus != NotificationPermission.granted) {
       await FlutterForegroundTask.requestNotificationPermission();
     }
 
-    // Start foreground service
     final result = await FlutterForegroundTask.startService(
       notificationTitle: 'GymSync Active',
       notificationText: 'Tracking $activity workout',
@@ -80,7 +73,6 @@ class ForegroundWorkoutService {
     return isStarted;
   }
 
-  /// Stop foreground workout tracking
   Future<bool> stopWorkoutTracking() async {
     if (!_isRunning) return true;
 
@@ -96,7 +88,6 @@ class ForegroundWorkoutService {
     return isStopped;
   }
 
-  /// Update notification during workout
   Future<void> updateWorkoutNotification({
     required String activity,
     required Duration elapsed,
@@ -110,10 +101,8 @@ class ForegroundWorkoutService {
     );
   }
 
-  /// Check if service is running
   bool get isRunning => _isRunning;
 
-  /// Format elapsed time
   String _formatElapsed(Duration d) {
     final m = d.inMinutes.remainder(60).toString().padLeft(2, '0');
     final s = d.inSeconds.remainder(60).toString().padLeft(2, '0');
@@ -121,14 +110,11 @@ class ForegroundWorkoutService {
   }
 }
 
-/// Foreground task callback
-/// This runs in the foreground service context
 @pragma('vm:entry-point')
 void _foregroundTaskCallback() {
   FlutterForegroundTask.setTaskHandler(_WorkoutTaskHandler());
 }
 
-/// Task handler for workout tracking
 class _WorkoutTaskHandler extends TaskHandler {
   int _updateCount = 0;
 
@@ -140,11 +126,7 @@ class _WorkoutTaskHandler extends TaskHandler {
   @override
   void onRepeatEvent(DateTime timestamp) {
     _updateCount++;
-
-    // Update workout status every 5 seconds (as configured)
     _updateWorkoutStatus();
-
-    // Send heartbeat to main isolate if needed
     FlutterForegroundTask.sendDataToMain({
       'timestamp': timestamp.millisecondsSinceEpoch,
       'updateCount': _updateCount,
@@ -156,23 +138,18 @@ class _WorkoutTaskHandler extends TaskHandler {
     debugPrint('Workout tracking service destroyed at $timestamp');
   }
 
-  /// Update workout status in background
   Future<void> _updateWorkoutStatus() async {
     try {
-      // Get current workout status
       final prefs = await SharedPreferences.getInstance();
       final activity = prefs.getString('current_activity');
       final startTime = prefs.getInt('workout_start_time');
 
       if (activity != null && startTime != null) {
-        // Calculate elapsed time
         final elapsed = DateTime.now().millisecondsSinceEpoch - startTime;
         final elapsedDuration = Duration(milliseconds: elapsed);
 
-        // Update backend status
         await BackendService.start(activity);
 
-        // Update notification
         final formattedTime = _formatElapsed(elapsedDuration);
         await FlutterForegroundTask.updateService(
           notificationTitle: 'GymSync - $formattedTime',
@@ -186,7 +163,6 @@ class _WorkoutTaskHandler extends TaskHandler {
     }
   }
 
-  /// Format elapsed time
   String _formatElapsed(Duration d) {
     final m = d.inMinutes.remainder(60).toString().padLeft(2, '0');
     final s = d.inSeconds.remainder(60).toString().padLeft(2, '0');
