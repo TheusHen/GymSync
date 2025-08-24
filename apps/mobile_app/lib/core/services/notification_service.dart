@@ -41,7 +41,7 @@ class NotificationService {
     required String activity,
   }) async {
     if (!_enabled) return;
-    const AndroidNotificationDetails android = AndroidNotificationDetails(
+    final android = AndroidNotificationDetails(
       'persistent_gym_channel',
       'Persistent Gym',
       channelDescription: 'Shows ongoing workout',
@@ -65,7 +65,7 @@ class NotificationService {
       ],
       category: AndroidNotificationCategory.service,
       showWhen: true,
-      when: DateTime.now().millisecondsSinceEpoch,
+      // Removido o campo 'when'
       usesChronometer: true,
       chronometerCountDown: false,
     );
@@ -73,7 +73,7 @@ class NotificationService {
       1,
       elapsed,
       activity,
-      const NotificationDetails(android: android),
+      NotificationDetails(android: android),
       payload: '',
     );
   }
