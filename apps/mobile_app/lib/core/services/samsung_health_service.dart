@@ -1,8 +1,8 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
-import 'package:samsung_health_handler/samsung_health_handler.dart';
 import 'package:permission_handler/permission_handler.dart';
 
+// Note: samsung_health_handler has limited API, we'll use a more basic approach
 typedef ActivityDetectionCallback = void Function(String activityType, bool isActive);
 
 class SamsungHealthService {
@@ -16,15 +16,19 @@ class SamsungHealthService {
 
   static Future<bool> requestPermission() async {
     try {
-      // Request Samsung Health permissions
-      final result = await SamsungHealthHandler.requestPermissions([
-        HealthDataType.STEP_COUNT,
-        HealthDataType.EXERCISE,
-        HealthDataType.HEART_RATE,
-        HealthDataType.DISTANCE,
-      ]);
+      // For now, we'll use basic Android permissions since samsung_health_handler
+      // has limited functionality. In a real implementation, you'd use Samsung Health SDK
+      final permissions = [
+        Permission.activityRecognition,
+        Permission.sensors,
+        Permission.locationWhenInUse,
+      ];
       
-      return result;
+      final statuses = await permissions.request();
+      final allGranted = statuses.values.every((status) => status.isGranted);
+      
+      debugPrint('Samsung Health permissions requested: $allGranted');
+      return allGranted;
     } catch (e) {
       debugPrint('Error requesting Samsung Health permissions: $e');
       return false;
@@ -33,14 +37,14 @@ class SamsungHealthService {
 
   Future<bool> checkAllPermissionsGranted() async {
     try {
-      // Try to read recent step data to verify permissions
-      final now = DateTime.now();
-      final startTime = now.subtract(const Duration(minutes: 1));
+      // Basic permission check
+      final activity = await Permission.activityRecognition.isGranted;
+      final sensors = await Permission.sensors.isGranted;
+      final location = await Permission.locationWhenInUse.isGranted;
       
-      await SamsungHealthHandler.readStepCount(startTime, now);
-      return true;
+      return activity && sensors && location;
     } catch (e) {
-      debugPrint('Samsung Health permissions not granted: $e');
+      debugPrint('Samsung Health permissions check failed: $e');
       return false;
     }
   }
@@ -48,26 +52,9 @@ class SamsungHealthService {
   /// Returns the current detailed exercise, if there is one in progress
   Future<Map<String, dynamic>?> getCurrentExerciseDetailed() async {
     try {
-      final now = DateTime.now();
-      final start = now.subtract(const Duration(hours: 6));
-      
-      final exercises = await SamsungHealthHandler.readExercises(start, now);
-      
-      // Find ongoing exercise (no end time or end time is in the future)
-      for (var exercise in exercises) {
-        if (exercise.endTime == null || exercise.endTime!.isAfter(now)) {
-          return {
-            'exerciseType': _mapExerciseType(exercise.exerciseType),
-            'value': exercise.duration?.inSeconds ?? 0,
-            'unit': 'seconds',
-            'startTime': exercise.startTime.toIso8601String(),
-            'endTime': exercise.endTime?.toIso8601String(),
-            'source': 'Samsung Health',
-            'metadata': exercise.toString(),
-          };
-        }
-      }
-      
+      // For Samsung Health, we'd need to implement actual Samsung Health SDK integration
+      // For now, return null as this is a placeholder implementation
+      debugPrint('Samsung Health getCurrentExerciseDetailed called (placeholder)');
       return null;
     } catch (e) {
       debugPrint('Error getting current exercise from Samsung Health: $e');
@@ -78,13 +65,13 @@ class SamsungHealthService {
   /// Checks if there is any active exercise currently
   Future<String?> getCurrentActiveExerciseType() async {
     try {
-      // First check for specific workout
+      // Placeholder implementation - in real app, this would query Samsung Health
       final exercise = await getCurrentExerciseDetailed();
       if (exercise != null) {
         return exercise['exerciseType'];
       }
       
-      // If no specific workout, check for walking activity
+      // Basic step-based walking detection (simplified)
       if (await isWalking()) {
         return "Walking";
       }
@@ -96,17 +83,13 @@ class SamsungHealthService {
     }
   }
   
-  /// Specifically checks if the user is walking based on step data
+  /// Simplified walking detection placeholder
   Future<bool> isWalking() async {
     try {
-      final now = DateTime.now();
-      final fiveMinutesAgo = now.subtract(const Duration(minutes: 5));
-      
-      // Get step count for the last 5 minutes
-      final stepCount = await SamsungHealthHandler.readStepCount(fiveMinutesAgo, now);
-      
-      // If more than 20 steps in the last 5 minutes, consider it walking
-      return stepCount > 20;
+      // In a real implementation, this would query Samsung Health for step data
+      // For now, return false as placeholder
+      debugPrint('Samsung Health isWalking called (placeholder)');
+      return false;
     } catch (e) {
       debugPrint('Error checking if walking from Samsung Health: $e');
       return false;
@@ -116,28 +99,8 @@ class SamsungHealthService {
   /// Gets activity data for walking, running, cycling
   Future<Map<String, dynamic>?> getActivityData(String activityType, DateTime startTime, DateTime endTime) async {
     try {
-      switch (activityType.toLowerCase()) {
-        case 'walking':
-        case 'running':
-        case 'cycling':
-          final exercises = await SamsungHealthHandler.readExercises(startTime, endTime);
-          final relevantExercises = exercises.where((ex) => 
-            _mapExerciseType(ex.exerciseType).toLowerCase() == activityType.toLowerCase()
-          ).toList();
-          
-          if (relevantExercises.isNotEmpty) {
-            final exercise = relevantExercises.first;
-            return {
-              'type': activityType,
-              'duration': exercise.duration?.inSeconds ?? 0,
-              'distance': exercise.distance ?? 0,
-              'calories': exercise.calorie ?? 0,
-              'startTime': exercise.startTime.toIso8601String(),
-              'endTime': exercise.endTime?.toIso8601String(),
-            };
-          }
-          break;
-      }
+      // Placeholder implementation for Samsung Health activity data
+      debugPrint('Samsung Health getActivityData called for $activityType (placeholder)');
       return null;
     } catch (e) {
       debugPrint('Error getting activity data from Samsung Health: $e');
@@ -153,20 +116,26 @@ class SamsungHealthService {
     
     _activityMonitorTimer?.cancel();
     _activityMonitorTimer = Timer.periodic(const Duration(minutes: 1), (_) async {
+      // Placeholder monitoring - in real implementation, this would query Samsung Health
+      debugPrint('Samsung Health activity monitoring tick (placeholder)');
+      
       final activityType = await getCurrentActiveExerciseType();
       if (activityType != null && onActivityDetected != null) {
         onActivityDetected!(activityType, true);
       }
     });
+    
+    debugPrint('Samsung Health activity monitoring started (placeholder)');
   }
   
   /// Stops continuous monitoring of user activity
   void stopActivityMonitoring() {
     _activityMonitorTimer?.cancel();
     _activityMonitorTimer = null;
+    debugPrint('Samsung Health activity monitoring stopped');
   }
 
-  /// Maps Samsung Health exercise types to readable names
+  /// Maps Samsung Health exercise types to readable names (placeholder)
   String _mapExerciseType(int exerciseType) {
     switch (exerciseType) {
       case 1001: return 'Walking';
