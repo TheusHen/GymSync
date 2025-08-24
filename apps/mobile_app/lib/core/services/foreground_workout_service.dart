@@ -40,6 +40,7 @@ class ForegroundWorkoutService {
         allowWifiLock: true,
       ),
     );
+    // Não use o retorno, pois é void!
   }
 
   /// Start foreground workout tracking
@@ -70,9 +71,7 @@ class ForegroundWorkoutService {
       callback: _foregroundTaskCallback,
     );
 
-    // FIX: ServiceRequestResult.success may not exist; use ServiceResult.success instead or compare result with expected value.
-    // Check what result returns: it's likely a bool, enum, or int, depending on flutter_foreground_task version
-    final isStarted = result == ServiceResult.success; // <-- fix
+    final isStarted = result == true; // Corrigido, pois retorna bool
 
     if (isStarted) {
       _isRunning = true;
@@ -87,9 +86,7 @@ class ForegroundWorkoutService {
     if (!_isRunning) return true;
 
     final result = await FlutterForegroundTask.stopService();
-
-    // FIX: ServiceRequestResult.success may not exist; use ServiceResult.success instead or compare result with expected value.
-    final isStopped = result == ServiceResult.success; // <-- fix
+    final isStopped = result == true; // Corrigido, pois retorna bool
     if (isStopped) {
       _isRunning = false;
       _receivePort?.close();
