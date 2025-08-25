@@ -13,7 +13,7 @@ const DiscordRPC = require("discord-rpc");
 const axios = require("axios");
 const path = require("path");
 const fs = require("fs");
-const AutoLaunch = require('auto-launch');
+
 const os = require("os");
 
 // === Configuration ===
@@ -78,78 +78,64 @@ function getImageKeyForActivity(activity) {
   return "gymsync_logo";
 }
 
-// === Auto-launch configuration ===
-function getExecutablePath() {
-  // For development mode
-  if (process.env.NODE_ENV === 'development' || !app.isPackaged) {
-    return process.execPath;
-  }
-  
-  // For packaged applications
-  const appName = "GymSync Presence";
-  let exePath = process.execPath;
-  
-  if (process.platform === "win32") {
-    // Windows: Try multiple possible locations
-    const possiblePaths = [
-      path.join(process.cwd(), `${appName}.exe`),
-      path.join(path.dirname(process.execPath), `${appName}.exe`),
-      process.execPath
-    ];
-    
-    for (const testPath of possiblePaths) {
-      if (fs.existsSync(testPath)) {
-        exePath = testPath;
-        break;
-      }
-    }
-  } else if (process.platform === "darwin") {
-    // macOS: Should be the app bundle
-    if (process.execPath.includes(".app")) {
-      exePath = process.execPath;
-    } else {
-      // Fallback: try to find the .app bundle
-      const appPath = process.execPath.split(".app")[0] + ".app";
-      if (fs.existsSync(appPath)) {
-        exePath = appPath;
-      }
-    }
-  } else if (process.platform === "linux") {
-    // Linux: Use the actual executable name
-    const possiblePaths = [
-      path.join(path.dirname(process.execPath), "gymsync-presence"),
-      process.execPath
-    ];
-    
-    for (const testPath of possiblePaths) {
-      if (fs.existsSync(testPath)) {
-        exePath = testPath;
-        break;
-      }
-    }
-  }
-  
-  log(`Auto-launch executable path: ${exePath}`);
-  return exePath;
-}
+// === Auto-startup configuration ===
+function addToStartup() {
+  const platform = process.platform;
+  const exePath = process.execPath;
 
-const appLauncher = new AutoLaunch({
-  name: "GymSync Presence",
-  path: getExecutablePath(),
-  isHidden: true,
-  args: ["--hidden"],
-});
-
-function ensureAutoLaunch() {
-  appLauncher.isEnabled().then((isEnabled) => {
-    if (!isEnabled) {
-      appLauncher.enable()
-          .then(() => log("Auto-launch enabled: the app will start with the system."))
-          .catch((err) => logError("Error enabling auto-launch: " + err));
-    } else {
-      log("Auto-launch is already enabled.");
+  if (platform === 'win32') {
+    // Windows: copy to Startup folder
+    const startupFolder = path.join(process.env.APPDATA, 'Microsoft\\Windows\\Start Menu\\Programs\\Startup');
+    const destinationPath = path.join(startupFolder, path.basename(exePath));
+    if (!fs.existsSync(destinationPath)) {
+      fs.copyFileSync(exePath, destinationPath);
+      console.log(`Added to startup (Windows): ${destinationPath}`);
     }
-  }).catch((err) => logError("Error checking auto-launch: " + err));
+  } else if (platform === 'linux') {
+    // Linux: create .desktop file in ~/.config/autostart
+    const autostartDir = path.join(os.homedir(), '.config', 'autostart');
+    if (!fs.existsSync(autostartDir)) fs.mkdirSync(autostartDir, {recursive: true});
+    const desktopEntryPath = path.join(autostartDir, 'GymSyncPresence.desktop');
+    const desktopEntry = `[Desktop Entry]
+Type=Application
+Exec=${exePath}
+Hidden=false
+NoDisplay=false
+X-GNOME-Autostart-enabled=true
+Name=GymSync Presence
+Comment=Start GymSync Presence at login
+`;
+    if (!fs.existsSync(desktopEntryPath)) {
+      fs.writeFileSync(desktopEntryPath, desktopEntry, {encoding: 'utf8'});
+      console.log(`Added to startup (Linux): ${desktopEntryPath}`);
+    }
+  } else if (platform === 'darwin') {
+    // MacOS: create plist in ~/Library/LaunchAgents
+    const plistDir = path.join(os.homedir(), 'Library', 'LaunchAgents');
+    if (!fs.existsSync(plistDir)) fs.mkdirSync(plistDir, {recursive: true});
+    const plistPath = path.join(plistDir, 'com.gymsync.presence.plist');
+    const plistContent = `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.gymsync.presence</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>${exePath}</string>
+  </array>
+  <key>RunAtLoad</key>
+  <true/>
+</dict>
+</plist>
+`;
+    if (!fs.existsSync(plistPath)) {
+      fs.writeFileSync(plistPath, plistContent, {encoding: 'utf8'});
+      console.log(`Added to startup (MacOS): ${plistPath}`);
+    }
+  } else {
+    console.log('Platform not supported for auto-startup.');
+  }
 }
 
 function getTrayIconPath() {
@@ -240,7 +226,7 @@ app.whenReady().then(() => {
     app.dock.hide();
   }
   
-  ensureAutoLaunch();
+  addToStartup();
   createTray();
   
   // Only create OAuth window if not starting hidden

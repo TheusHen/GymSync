@@ -52,14 +52,15 @@ jest.mock('discord-rpc', () => ({
 jest.mock('axios', () => ({
   get: jest.fn().mockResolvedValue({ data: { id: '123456789', username: 'testuser', discriminator: '1234' } }),
 }));
-jest.mock('auto-launch', () => {
-  return jest.fn().mockImplementation(() => ({
-    isEnabled: jest.fn().mockResolvedValue(true),
-    enable: jest.fn().mockResolvedValue(),
-  }));
-});
 jest.mock('fs', () => ({
   appendFileSync: jest.fn(),
+  existsSync: jest.fn().mockReturnValue(false),
+  copyFileSync: jest.fn(),
+  writeFileSync: jest.fn(),
+  mkdirSync: jest.fn(),
+}));
+jest.mock('os', () => ({
+  homedir: jest.fn().mockReturnValue('/home/testuser'),
 }));
 
 // Import the functions to test
