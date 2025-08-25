@@ -40,15 +40,37 @@
       "main.js",
       "package.json"
     ],
+    "nativeRebuilder": "legacy",
+    "buildDependenciesFromSource": false,
+    "nodeGypRebuild": false,
+    "npmRebuild": false,
     "win": {
-      "target": "portable",
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64", "ia32"]
+        },
+        {
+          "target": "portable",
+          "arch": ["x64", "ia32"]
+        }
+      ],
       "icon": "build/icon.png"
     },
     "linux": {
       "target": [
-        "AppImage",
-        "deb",
-        "dir"
+        {
+          "target": "AppImage",
+          "arch": ["x64"]
+        },
+        {
+          "target": "deb",
+          "arch": ["x64"]
+        },
+        {
+          "target": "dir",
+          "arch": ["x64"]
+        }
       ],
       "icon": "build/icon.png",
       "category": "Utility",
@@ -56,9 +78,18 @@
     },
     "mac": {
       "target": [
-        "dmg",
-        "zip",
-        "dir"
+        {
+          "target": "dmg",
+          "arch": ["x64", "arm64"]
+        },
+        {
+          "target": "zip",
+          "arch": ["x64", "arm64"]
+        },
+        {
+          "target": "dir",
+          "arch": ["x64", "arm64"]
+        }
       ],
       "icon": "build/icon.png",
       "category": "public.app-category.utilities"
