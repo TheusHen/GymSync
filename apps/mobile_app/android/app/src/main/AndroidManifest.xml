@@ -1,5 +1,8 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.theushen.gymsync">
 
+    <!-- Permissões principais -->
     <uses-permission android:name="android.permission.ACTIVITY_RECOGNITION"/>
     <uses-permission android:name="android.permission.BODY_SENSORS"/>
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
@@ -15,14 +18,13 @@
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
     <!-- Boot receiver permission -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
-    
     <!-- Samsung Health permissions -->
     <uses-permission android:name="com.samsung.android.providers.context.permission.WRITE_USE_APP_FEATURE_SURVEY" />
 
     <application
         android:label="GymSync"
-        android:name="${applicationName}"
-        android:icon="@mipmap/ic_launcher">
+        android:icon="@mipmap/ic_launcher"
+        android:name="${applicationName}">
         <activity
             android:name=".MainActivity"
             android:exported="true"
@@ -41,15 +43,16 @@
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
         </activity>
-        
+
         <!-- Foreground service for workout tracking -->
         <service 
             android:name="com.pravera.flutter_foreground_task.service.ForegroundService"
             android:foregroundServiceType="location"
             android:stopWithTask="false" />
-        
+
         <!-- Boot receiver for auto-start -->
-        <receiver android:name="com.pravera.flutter_foreground_task.service.ForegroundServiceBootReceiver"
+        <receiver 
+            android:name="com.pravera.flutter_foreground_task.service.ForegroundServiceBootReceiver"
             android:enabled="true"
             android:exported="true">
             <intent-filter android:priority="1000">
@@ -60,7 +63,7 @@
                 <data android:scheme="package" />
             </intent-filter>
         </receiver>
-        
+
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
@@ -71,9 +74,7 @@
             <action android:name="android.intent.action.PROCESS_TEXT"/>
             <data android:mimeType="text/plain"/>
         </intent>
-        </intent>
-        
-        <!-- Samsung Health queries -->
+        <!-- Samsung Health -->
         <package android:name="com.sec.android.app.shealth" />
         <intent>
             <action android:name="com.samsung.android.sdk.health.intent.action.REQUEST_PERMISSION" />
