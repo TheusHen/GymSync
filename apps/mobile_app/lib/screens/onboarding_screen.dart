@@ -95,6 +95,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
   Future<bool> _checkHealthPermissions() async {
     try {
+      debugPrint('OnboardingScreen: Starting health permissions check...');
+      
       // Check basic Android permissions first
       final activity = await Permission.activityRecognition.status;
       final sensors = await Permission.sensors.status;
@@ -105,20 +107,31 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         notificationGranted = await Permission.notification.isGranted;
       }
       
-      debugPrint('Basic permissions: activity=${activity.isGranted}, sensors=${sensors.isGranted}, location=${location.isGranted}, notification=$notificationGranted');
+      debugPrint('OnboardingScreen: Basic permissions check:');
+      debugPrint('  - Activity Recognition: ${activity.isGranted} (status: $activity)');
+      debugPrint('  - Sensors: ${sensors.isGranted} (status: $sensors)');
+      debugPrint('  - Location: ${location.isGranted} (status: $location)');
+      debugPrint('  - Notification: $notificationGranted');
       
       if (!activity.isGranted || !sensors.isGranted || !location.isGranted || !notificationGranted) {
-        debugPrint('Basic permissions not granted');
+        debugPrint('OnboardingScreen: Basic permissions not granted, health check failed');
         return false;
       }
       
-      // Check health service permissions
-      final healthServiceGranted = await HealthService().checkAllPermissionsGranted();
-      debugPrint('Health service permissions granted: $healthServiceGranted');
+      // Initialize health service if not already done
+      final healthService = HealthService();
+      
+      // Check health service permissions with detailed logging
+      debugPrint('OnboardingScreen: Checking health service permissions...');
+      debugPrint('OnboardingScreen: Using Samsung Health: ${healthService.isSamsung}');
+      
+      final healthServiceGranted = await healthService.checkAllPermissionsGranted();
+      debugPrint('OnboardingScreen: Health service permissions result: $healthServiceGranted');
       
       return healthServiceGranted;
     } catch (e) {
-      debugPrint('Error checking health permissions: $e');
+      debugPrint('OnboardingScreen: Error checking health permissions: $e');
+      debugPrint('OnboardingScreen: Stack trace: ${StackTrace.current}');
       return false;
     }
   }
@@ -151,19 +164,25 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     setState(() => requestingHealth = true);
     
     try {
+      debugPrint('OnboardingScreen: Starting health permission request...');
+      debugPrint('OnboardingScreen: Device is Samsung: $isSamsung');
+      
       final granted = await HealthService.requestPermission(
         preferSamsung: isSamsung,
       );
       
-      debugPrint('Health permission request result: $granted');
+      debugPrint('OnboardingScreen: Health permission request result: $granted');
       
-      // Always refresh status after permission request
+      // Always refresh status after permission request to get the latest state
+      debugPrint('OnboardingScreen: Refreshing health status...');
       await _refreshHealthStatus();
       
       if (!healthGranted && mounted) {
+        debugPrint('OnboardingScreen: Health permissions still not granted after request, showing dialog');
         // Show helpful dialog instead of just a snackbar
         _showHealthPermissionDialog();
       } else if (healthGranted && mounted) {
+        debugPrint('OnboardingScreen: Health permissions granted successfully!');
         // Show success message
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -173,7 +192,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         );
       }
     } catch (e) {
-      debugPrint('Error requesting health permissions: $e');
+      debugPrint('OnboardingScreen: Error requesting health permissions: $e');
+      debugPrint('OnboardingScreen: Stack trace: ${StackTrace.current}');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -190,6 +210,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   }
 
   void _showHealthPermissionDialog() {
+    debugPrint('OnboardingScreen: Showing health permission dialog');
+    
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -215,21 +237,42 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               Text('2. Go to Settings > Permissions'),
               Text('3. Allow GymSync to access your data'),
               Text('4. Return to GymSync and try again'),
+              SizedBox(height: 8),
+              Text(
+                'Note: If Samsung Health is not available, we\'ll use Google Fit instead.',
+                style: TextStyle(fontSize: 12, fontStyle: FontStyle.italic),
+              ),
             ] else ...[
               Text('1. Open Google Fit app'),
               Text('2. Make sure Google Fit is set up'),
               Text('3. Grant permissions when prompted'),
               Text('4. Return to GymSync and try again'),
             ],
+            SizedBox(height: 12),
+            Container(
+              padding: EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.blue.shade50,
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: Text(
+                'Tip: If you continue to have issues, try "Later" and the app will work with basic features.',
+                style: TextStyle(fontSize: 12, color: Colors.blue.shade700),
+              ),
+            ),
           ],
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.of(context).pop(),
+            onPressed: () {
+              debugPrint('OnboardingScreen: User chose "Later" for health permissions');
+              Navigator.of(context).pop();
+            },
             child: Text('Later'),
           ),
           TextButton(
             onPressed: () async {
+              debugPrint('OnboardingScreen: User chose "Open Settings"');
               Navigator.of(context).pop();
               // Try to open the health app settings
               await _openHealthAppSettings();
@@ -238,6 +281,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           ),
           TextButton(
             onPressed: () async {
+              debugPrint('OnboardingScreen: User chose "Try Again"');
               Navigator.of(context).pop();
               // Try requesting permissions again
               enableHealth();
@@ -251,21 +295,37 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
   Future<void> _openHealthAppSettings() async {
     try {
+      debugPrint('OnboardingScreen: Attempting to open health app settings');
+      
       if (isSamsung) {
+        debugPrint('OnboardingScreen: Directing user to Samsung Health');
         // Try to open Samsung Health
         // In a real app, you'd use url_launcher to open samsung health://
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Please open Samsung Health app manually')),
+          SnackBar(
+            content: Text('Please open Samsung Health app from your app drawer and set up permissions'),
+            duration: Duration(seconds: 4),
+          ),
         );
       } else {
+        debugPrint('OnboardingScreen: Directing user to Google Fit');
         // Try to open Google Fit
         // In a real app, you'd use url_launcher to open Google Fit
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Please open Google Fit app manually')),
+          SnackBar(
+            content: Text('Please open Google Fit app from your app drawer and set up permissions'),
+            duration: Duration(seconds: 4),
+          ),
         );
       }
     } catch (e) {
-      debugPrint('Error opening health app: $e');
+      debugPrint('OnboardingScreen: Error opening health app: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Please manually open the health app and grant permissions'),
+          backgroundColor: Colors.orange,
+        ),
+      );
     }
   }
 

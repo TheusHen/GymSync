@@ -15,6 +15,9 @@
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
     <!-- Boot receiver permission -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    
+    <!-- Samsung Health permissions -->
+    <uses-permission android:name="com.samsung.android.providers.context.permission.WRITE_USE_APP_FEATURE_SURVEY" />
 
     <application
         android:label="GymSync"
@@ -67,6 +70,13 @@
         <intent>
             <action android:name="android.intent.action.PROCESS_TEXT"/>
             <data android:mimeType="text/plain"/>
+        </intent>
+        </intent>
+        
+        <!-- Samsung Health queries -->
+        <package android:name="com.sec.android.app.shealth" />
+        <intent>
+            <action android:name="com.samsung.android.sdk.health.intent.action.REQUEST_PERMISSION" />
         </intent>
     </queries>
 </manifest>

@@ -51,23 +51,37 @@ class HealthService {
   static Future<bool> requestPermission({bool? preferSamsung}) async {
     final instance = HealthService();
     if (!instance._hasBeenInitialized) {
-      debugPrint('Initializing HealthService for permission request...');
+      debugPrint('HealthService: Initializing HealthService for permission request...');
       await instance.initialize();
     }
     
     final shouldUseSamsung = preferSamsung ?? instance._isSamsung;
-    debugPrint('Requesting permissions - shouldUseSamsung: $shouldUseSamsung');
+    debugPrint('HealthService: Requesting permissions - shouldUseSamsung: $shouldUseSamsung, deviceIsSamsung: ${instance._isSamsung}');
     
     bool result;
     if (shouldUseSamsung) {
-      debugPrint('Requesting Samsung Health permissions');
-      result = await SamsungHealthService.requestPermission();
+      debugPrint('HealthService: Requesting Samsung Health permissions');
+      try {
+        result = await SamsungHealthService.requestPermission();
+        debugPrint('HealthService: Samsung Health permission result: $result');
+        
+        if (!result) {
+          debugPrint('HealthService: Samsung Health failed, trying Google Fit fallback...');
+          result = await GoogleFitService.requestPermission(preferSamsung: false);
+          debugPrint('HealthService: Google Fit fallback result: $result');
+        }
+      } catch (e) {
+        debugPrint('HealthService: Error with Samsung Health, falling back to Google Fit: $e');
+        result = await GoogleFitService.requestPermission(preferSamsung: false);
+        debugPrint('HealthService: Google Fit fallback result: $result');
+      }
     } else {
-      debugPrint('Requesting Google Fit permissions');
+      debugPrint('HealthService: Requesting Google Fit permissions');
       result = await GoogleFitService.requestPermission(preferSamsung: false);
+      debugPrint('HealthService: Google Fit permission result: $result');
     }
     
-    debugPrint('Permission request result: $result');
+    debugPrint('HealthService: Final permission request result: $result');
     return result;
   }
 
@@ -80,19 +94,41 @@ class HealthService {
       await initialize();
     }
     
-    debugPrint('Checking health permissions - isSamsung: $_isSamsung');
+    debugPrint('HealthService: Checking health permissions - isSamsung: $_isSamsung');
     
     if (_isSamsung && _samsungHealthService != null) {
-      final granted = await _samsungHealthService!.checkAllPermissionsGranted();
-      debugPrint('Samsung Health permissions check result: $granted');
-      return granted;
+      try {
+        final granted = await _samsungHealthService!.checkAllPermissionsGranted();
+        debugPrint('HealthService: Samsung Health permissions check result: $granted');
+        
+        if (!granted) {
+          debugPrint('HealthService: Samsung Health permissions not granted, checking if we should fallback to Google Fit');
+          // If Samsung Health permissions fail, try Google Fit as fallback
+          debugPrint('HealthService: Attempting Google Fit fallback...');
+          _googleFitService = GoogleFitService();
+          final googleFitGranted = await _googleFitService!.checkAllPermissionsGranted();
+          debugPrint('HealthService: Google Fit fallback result: $googleFitGranted');
+          return googleFitGranted;
+        }
+        
+        return granted;
+      } catch (e) {
+        debugPrint('HealthService: Error checking Samsung Health permissions: $e');
+        debugPrint('HealthService: Falling back to Google Fit due to Samsung Health error');
+        
+        // Fallback to Google Fit on error
+        _googleFitService = GoogleFitService();
+        final googleFitGranted = await _googleFitService!.checkAllPermissionsGranted();
+        debugPrint('HealthService: Google Fit fallback result: $googleFitGranted');
+        return googleFitGranted;
+      }
     } else if (_googleFitService != null) {
       final granted = await _googleFitService!.checkAllPermissionsGranted();
-      debugPrint('Google Fit permissions check result: $granted');
+      debugPrint('HealthService: Google Fit permissions check result: $granted');
       return granted;
     }
     
-    debugPrint('No health service available');
+    debugPrint('HealthService: No health service available');
     return false;
   }
 
