@@ -25,6 +25,7 @@ class ForegroundWorkoutService {
         channelDescription: 'Notification channel for workout tracking',
         channelImportance: NotificationChannelImportance.HIGH,
         priority: NotificationPriority.HIGH,
+        // Removido isSticky
       ),
       iosNotificationOptions: const IOSNotificationOptions(
         showNotification: true,
@@ -32,9 +33,10 @@ class ForegroundWorkoutService {
       ),
       foregroundTaskOptions: ForegroundTaskOptions(
         eventAction: ForegroundTaskEventAction.repeat(5000),
-        autoRunOnBoot: false,
+        autoRunOnBoot: true,
         allowWakeLock: true,
         allowWifiLock: true,
+        // Removido isOnceEvent
       ),
     );
   }
@@ -102,6 +104,23 @@ class ForegroundWorkoutService {
   }
 
   bool get isRunning => _isRunning;
+
+  /// Method to be called on boot to restore any active workout
+  static Future<void> onBoot() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final activity = prefs.getString('current_activity');
+      final startTime = prefs.getInt('workout_start_time');
+      
+      if (activity != null && startTime != null) {
+        debugPrint('Restoring workout on boot: $activity');
+        final instance = ForegroundWorkoutService();
+        await instance.startWorkoutTracking(activity);
+      }
+    } catch (e) {
+      debugPrint('Error restoring workout on boot: $e');
+    }
+  }
 
   String _formatElapsed(Duration d) {
     final m = d.inMinutes.remainder(60).toString().padLeft(2, '0');

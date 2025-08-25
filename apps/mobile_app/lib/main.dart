@@ -19,6 +19,9 @@ void main() async {
   
   // Initialize app state monitoring
   AppStateService().initialize();
+  
+  // Restore any active workout (important for boot scenarios)
+  await ForegroundWorkoutService.onBoot();
 
   final prefs = await SharedPreferences.getInstance();
   final themeValue = prefs.getString('theme_mode');
