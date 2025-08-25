@@ -26,6 +26,7 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   bool running = false;
+  bool paused = false; // Add paused state
   Duration elapsed = Duration.zero;
   String activity = 'unknown';
   String lastSession = '00:00 - unknown';
@@ -78,6 +79,7 @@ class _HomeScreenState extends State<HomeScreen> {
     await _checkIfInGym();
     await _loadBackendStatus();
     await _restoreWorkoutState(); // Restore any ongoing workout
+    await _checkAndRequestHealthPermissions(); // Add health permissions check
     if (inGym) {
       _startGymFlowIfNeeded();
     } else {
@@ -93,28 +95,106 @@ class _HomeScreenState extends State<HomeScreen> {
       final prefs = await SharedPreferences.getInstance();
       final currentActivity = prefs.getString('current_activity');
       final startTime = prefs.getInt('workout_start_time');
+      final pauseTime = prefs.getInt('workout_pause_time');
       
       if (currentActivity != null && startTime != null) {
         final now = DateTime.now().millisecondsSinceEpoch;
-        final elapsedMillis = now - startTime;
         
-        setState(() {
-          activity = currentActivity;
-          running = true;
-          elapsed = Duration(milliseconds: elapsedMillis);
-        });
-        
-        _startStatusUpdates();
-        debugPrint('Restored workout state: $currentActivity, elapsed: ${_formatElapsed(elapsed)}');
+        if (pauseTime != null) {
+          // Workout was paused, restore paused state
+          final pausedElapsed = Duration(milliseconds: pauseTime - startTime);
+          setState(() {
+            activity = currentActivity;
+            running = false;
+            paused = true;
+            elapsed = pausedElapsed;
+          });
+          debugPrint('Restored paused workout state: $currentActivity, elapsed: ${_formatElapsed(elapsed)}');
+          
+          // Start reduced location monitoring to detect return to gym
+          _startReducedLocationMonitoring();
+        } else {
+          // Workout was active, restore active state
+          final elapsedMillis = now - startTime;
+          setState(() {
+            activity = currentActivity;
+            running = true;
+            paused = false;
+            elapsed = Duration(milliseconds: elapsedMillis);
+          });
+          _startStatusUpdates();
+          debugPrint('Restored active workout state: $currentActivity, elapsed: ${_formatElapsed(elapsed)}');
+        }
       }
     } catch (e) {
       debugPrint('Error restoring workout state: $e');
     }
   }
 
+  /// Check and request health permissions with proper user guidance
+  Future<void> _checkAndRequestHealthPermissions() async {
+    try {
+      final healthService = HealthService();
+      final hasPermissions = await healthService.checkAllPermissionsGranted();
+      
+      if (!hasPermissions) {
+        final granted = await HealthService.requestPermission();
+        if (!granted) {
+          _showHealthPermissionDialog();
+        }
+      }
+    } catch (e) {
+      debugPrint('Error checking health permissions: $e');
+      _showHealthPermissionDialog();
+    }
+  }
+
+  void _showHealthPermissionDialog() {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Health Access Required'),
+          content: const Text(
+            'GymSync needs access to your health data to automatically detect exercises. '
+            'Please grant permissions in your device settings:\n\n'
+            '1. Go to Settings\n'
+            '2. Find Apps > GymSync\n'
+            '3. Enable Health/Fitness permissions\n'
+            '4. Return to the app'
+          ),
+          actions: [
+            TextButton(
+              child: const Text('Open Settings'),
+              onPressed: () {
+                Navigator.of(context).pop();
+                // Open app settings
+                openAppSettings();
+              },
+            ),
+            TextButton(
+              child: const Text('Try Again'),
+              onPressed: () {
+                Navigator.of(context).pop();
+                _checkAndRequestHealthPermissions();
+              },
+            ),
+            TextButton(
+              child: const Text('Later'),
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   void _startActivityMonitoring() async {
     final granted = await HealthService.requestPermission();
     if (!granted) {
+      debugPrint('Health permissions not granted, skipping activity monitoring');
       return;
     }
     HealthService().startActivityMonitoring(
@@ -255,14 +335,71 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _startLocationMonitoring() {
+    if (paused) return; // Don't start if paused
     _locationTimer?.cancel();
     _locationTimer = Timer.periodic(const Duration(seconds: 5), (_) async {
+      if (paused) return; // Skip if paused
+      await _checkIfInGym();
+      if (inGym && !running) {
+        // Auto-resume when entering gym while paused
+        if (paused) {
+          await _autoResumeFromGym();
+        } else {
+          _startGymFlowIfNeeded();
+        }
+      } else if (!inGym && running && activity == "Gym") {
+        // Auto-pause when leaving gym instead of stopping
+        await _autoPauseFromGymExit();
+      }
+    });
+  }
+
+  void _stopLocationMonitoring() {
+    _locationTimer?.cancel();
+    _locationTimer = null;
+  }
+
+  /// Auto-pause workout when leaving gym
+  Future<void> _autoPauseFromGymExit() async {
+    if (paused) return; // Already paused
+    
+    debugPrint('Auto-pausing workout: left gym');
+    await _pauseWorkout();
+    _showCustomNotification(
+      'Workout Paused',
+      'You left the gym. Your workout is paused and will resume when you return.'
+    );
+    
+    // Stop location monitoring to save battery
+    _stopLocationMonitoring();
+    
+    // Start a less frequent check to detect when user returns to gym
+    _startReducedLocationMonitoring();
+  }
+
+  /// Auto-resume workout when returning to gym
+  Future<void> _autoResumeFromGym() async {
+    if (!paused) return; // Not paused
+    
+    debugPrint('Auto-resuming workout: returned to gym');
+    await _resumeWorkout();
+    _showCustomNotification(
+      'Workout Resumed',
+      'Welcome back! Your workout has resumed from where you left off.'
+    );
+    
+    // Resume normal location monitoring
+    _startLocationMonitoring();
+  }
+
+  /// Start reduced frequency location monitoring while paused
+  void _startReducedLocationMonitoring() {
+    _locationTimer?.cancel();
+    _locationTimer = Timer.periodic(const Duration(seconds: 30), (_) async {
+      if (!paused) return; // Not paused anymore
       await _checkIfInGym();
       if (inGym) {
-        _startGymFlowIfNeeded();
-      } else if (!inGym && running && activity == "Gym") {
-        onStop();
-        _checkAndStartActiveExercise();
+        await _autoResumeFromGym();
       }
     });
   }
@@ -474,32 +611,69 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  void onPause() async {
+  /// Internal pause method (different from user-triggered pause)
+  Future<void> _pauseWorkout() async {
+    if (!running || paused) return;
+    
     await BackendService.pause();
-    setState(() => running = false);
+    setState(() {
+      paused = true;
+      running = false;
+    });
     _stopStatusUpdates();
     NotificationService().cancel();
     
     // Stop foreground service when pausing
     await ForegroundWorkoutService().stopWorkoutTracking();
     
-    await _loadBackendStatus();
+    // Store pause time for proper resume
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt('workout_pause_time', DateTime.now().millisecondsSinceEpoch);
   }
 
-  void onResume() async {
-    await BackendService.resume();
-    setState(() => running = true);
+  /// Internal resume method (different from user-triggered resume)
+  Future<void> _resumeWorkout() async {
+    if (!paused) return;
     
-    // Store workout start time for foreground service (accounting for previous elapsed time)
+    await BackendService.resume();
+    setState(() {
+      paused = false;
+      running = true;
+    });
+    
+    // Adjust workout start time to account for pause duration
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('current_activity', activity);
-    await prefs.setInt('workout_start_time', DateTime.now().millisecondsSinceEpoch - elapsed.inMilliseconds);
+    final pauseTime = prefs.getInt('workout_pause_time');
+    final currentStartTime = prefs.getInt('workout_start_time');
+    
+    if (pauseTime != null && currentStartTime != null) {
+      final pauseDuration = DateTime.now().millisecondsSinceEpoch - pauseTime;
+      final newStartTime = currentStartTime + pauseDuration;
+      await prefs.setInt('workout_start_time', newStartTime);
+      await prefs.remove('workout_pause_time');
+    }
     
     // Restart foreground service
     await ForegroundWorkoutService().startWorkoutTracking(activity);
     
     _startStatusUpdates();
     _maybeUpdateNotification();
+  }
+
+  void onPause() async {
+    await _pauseWorkout();
+    // Stop location monitoring when user manually pauses
+    _stopLocationMonitoring();
+    _startReducedLocationMonitoring();
+    
+    await _loadBackendStatus();
+  }
+
+  void onResume() async {
+    await _resumeWorkout();
+    // Resume normal location monitoring when user manually resumes
+    _startLocationMonitoring();
+    
     await _loadBackendStatus();
   }
 
@@ -507,6 +681,7 @@ class _HomeScreenState extends State<HomeScreen> {
     await BackendService.stop();
     setState(() {
       running = false;
+      paused = false; // Clear paused state
       lastSession = '${_formatElapsed(elapsed)} - $activity';
       elapsed = Duration.zero;
     });
@@ -516,10 +691,17 @@ class _HomeScreenState extends State<HomeScreen> {
     // Stop foreground service when stopping workout
     await ForegroundWorkoutService().stopWorkoutTracking();
     
+    // Stop location monitoring
+    _stopLocationMonitoring();
+    
     // Clear workout data from preferences
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('current_activity');
     await prefs.remove('workout_start_time');
+    await prefs.remove('workout_pause_time');
+    
+    // Resume normal location monitoring for gym detection
+    _startLocationMonitoring();
     
     await _loadBackendStatus();
   }
@@ -534,7 +716,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final bool controlsEnabled = running;
+    final bool controlsEnabled = running || paused;
     return Scaffold(
       appBar: AppBar(
         actions: [
@@ -561,18 +743,34 @@ class _HomeScreenState extends State<HomeScreen> {
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 CircularTimer(
-                  running: running,
+                  running: running && !paused,
                   duration: elapsed,
                   activity: activity,
                 ),
                 const SizedBox(height: 24),
+                if (paused)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: Colors.orange.withOpacity(0.2),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Text(
+                      'Workout Paused',
+                      style: TextStyle(
+                        color: Colors.orange,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                const SizedBox(height: 16),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     AnimatedButton(
-                      text: running ? 'Pause' : 'Resume',
+                      text: (running && !paused) ? 'Pause' : 'Resume',
                       onPressed: controlsEnabled
-                          ? (running ? onPause : onResume)
+                          ? ((running && !paused) ? onPause : onResume)
                           : _doNothing,
                       enabled: controlsEnabled,
                     ),
