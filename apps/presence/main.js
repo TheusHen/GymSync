@@ -13,7 +13,7 @@ const DiscordRPC = require("discord-rpc");
 const axios = require("axios");
 const path = require("path");
 const fs = require("fs");
-const AutoLaunch = require('auto-launch');
+
 const os = require("os");
 
 // === Configuration ===
@@ -78,29 +78,64 @@ function getImageKeyForActivity(activity) {
   return "gymsync_logo";
 }
 
-// === Auto-launch configuration ===
-let exePath = process.execPath;
-if (process.platform === "win32") {
-  // Force exe path for packaged app on Windows
-  const exeName = "GymSync Presence.exe";
-  exePath = path.join(process.cwd(), exeName);
-}
-const appLauncher = new AutoLaunch({
-  name: "GymSync Presence",
-  path: exePath,
-  isHidden: true,
-});
+// === Auto-startup configuration ===
+function addToStartup() {
+  const platform = process.platform;
+  const exePath = process.execPath;
 
-function ensureAutoLaunch() {
-  appLauncher.isEnabled().then((isEnabled) => {
-    if (!isEnabled) {
-      appLauncher.enable()
-          .then(() => log("Auto-launch enabled: the app will start with the system."))
-          .catch((err) => logError("Error enabling auto-launch: " + err));
-    } else {
-      log("Auto-launch is already enabled.");
+  if (platform === 'win32') {
+    // Windows: copy to Startup folder
+    const startupFolder = path.join(process.env.APPDATA, 'Microsoft\\Windows\\Start Menu\\Programs\\Startup');
+    const destinationPath = path.join(startupFolder, path.basename(exePath));
+    if (!fs.existsSync(destinationPath)) {
+      fs.copyFileSync(exePath, destinationPath);
+      console.log(`Added to startup (Windows): ${destinationPath}`);
     }
-  }).catch((err) => logError("Error checking auto-launch: " + err));
+  } else if (platform === 'linux') {
+    // Linux: create .desktop file in ~/.config/autostart
+    const autostartDir = path.join(os.homedir(), '.config', 'autostart');
+    if (!fs.existsSync(autostartDir)) fs.mkdirSync(autostartDir, {recursive: true});
+    const desktopEntryPath = path.join(autostartDir, 'GymSyncPresence.desktop');
+    const desktopEntry = `[Desktop Entry]
+Type=Application
+Exec=${exePath}
+Hidden=false
+NoDisplay=false
+X-GNOME-Autostart-enabled=true
+Name=GymSync Presence
+Comment=Start GymSync Presence at login
+`;
+    if (!fs.existsSync(desktopEntryPath)) {
+      fs.writeFileSync(desktopEntryPath, desktopEntry, {encoding: 'utf8'});
+      console.log(`Added to startup (Linux): ${desktopEntryPath}`);
+    }
+  } else if (platform === 'darwin') {
+    // MacOS: create plist in ~/Library/LaunchAgents
+    const plistDir = path.join(os.homedir(), 'Library', 'LaunchAgents');
+    if (!fs.existsSync(plistDir)) fs.mkdirSync(plistDir, {recursive: true});
+    const plistPath = path.join(plistDir, 'com.gymsync.presence.plist');
+    const plistContent = `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.gymsync.presence</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>${exePath}</string>
+  </array>
+  <key>RunAtLoad</key>
+  <true/>
+</dict>
+</plist>
+`;
+    if (!fs.existsSync(plistPath)) {
+      fs.writeFileSync(plistPath, plistContent, {encoding: 'utf8'});
+      console.log(`Added to startup (MacOS): ${plistPath}`);
+    }
+  } else {
+    console.log('Platform not supported for auto-startup.');
+  }
 }
 
 function getTrayIconPath() {
@@ -128,6 +163,11 @@ function createTray() {
       {
         label: "Show Window",
         click: () => {
+          // Show dock icon on macOS when showing window
+          if (process.platform === "darwin" && app.dock) {
+            app.dock.show();
+          }
+          
           if (mainWindow) {
             mainWindow.show();
           } else {
@@ -154,6 +194,11 @@ function createTray() {
 
     if (process.platform === "darwin") {
       tray.on("click", () => {
+        // Show dock icon on macOS when showing window
+        if (app.dock) {
+          app.dock.show();
+        }
+        
         if (mainWindow) {
           mainWindow.show();
         } else {
@@ -167,11 +212,29 @@ function createTray() {
   }
 }
 
+// === Startup behavior ===
+const shouldStartHidden = process.argv.includes('--hidden') || 
+                         process.argv.includes('--startup') ||
+                         app.getLoginItemSettings().wasOpenedAsHidden;
+
 app.whenReady().then(() => {
   log("Electron app ready event fired.");
-  ensureAutoLaunch();
+  log(`Should start hidden: ${shouldStartHidden}`);
+  
+  // Hide dock icon on macOS for background mode
+  if (shouldStartHidden && process.platform === "darwin") {
+    app.dock.hide();
+  }
+  
+  addToStartup();
   createTray();
-  createOAuthWindow();
+  
+  // Only create OAuth window if not starting hidden
+  if (!shouldStartHidden) {
+    createOAuthWindow();
+  } else {
+    log("Starting in background mode - OAuth window not created initially.");
+  }
 });
 
 // === Prompt for RPC title ===

@@ -18,6 +18,11 @@ You can build **GymSync** using **Makefile**.
 ```bash
 make apk
 make desktop-presence
+
+# Platform-specific presence builds
+make desktop-presence-windows  # Windows (NSIS installer + portable)
+make desktop-presence-linux    # Linux (AppImage + deb)
+make desktop-presence-macos     # macOS (DMG + zip)
 ```
 
 > [!WARNING]
@@ -43,16 +48,28 @@ make desktop-presence
 
 ## Setting up Presence
 
-1. Set up your `.env` files and compile the project using the **Makefile**, or run it from the source code (you'll need to keep it running)
-2. Keep Discord open at all times (it can be in the background)
-3. Log in to Discord and the app will run in the background
+1. Set up your `.env` files and compile the project using the **Makefile** (see [Build the Project](#build-the-project))
+2. Run the built presence application - it will automatically:
+   - **Add itself to system autostart** (starts with Windows/macOS/Linux)
+   - **Run in the background** with a system tray icon
+   - **Start minimized** when launched via autostart
+3. Keep Discord open at all times (it can be in the background)
+4. Log in to Discord through the presence app and it will run continuously in the background
+
+> [!TIP]
+> The presence app is designed to run completely in the background. Once set up, it will automatically start with your system and maintain your Discord Rich Presence without any manual intervention.
 
 ---
 
 ### Supported Platforms
 
-[![Windows](https://img.shields.io/badge/Windows-0078D6?style=for-the-badge\&logo=windows\&logoColor=white)]()
+**Mobile App:**
 [![Android](https://img.shields.io/badge/Android-3DDC84?style=for-the-badge\&logo=android\&logoColor=white)]()
+
+**Presence App:**
+[![Windows](https://img.shields.io/badge/Windows-0078D6?style=for-the-badge\&logo=windows\&logoColor=white)]()
+[![macOS](https://img.shields.io/badge/macOS-000000?style=for-the-badge\&logo=apple\&logoColor=white)]()
+[![Linux](https://img.shields.io/badge/Linux-FCC624?style=for-the-badge\&logo=linux\&logoColor=black)]()
 
 ### Tested with:
 
