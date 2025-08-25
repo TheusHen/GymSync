@@ -51,18 +51,24 @@ class HealthService {
   static Future<bool> requestPermission({bool? preferSamsung}) async {
     final instance = HealthService();
     if (!instance._hasBeenInitialized) {
+      debugPrint('Initializing HealthService for permission request...');
       await instance.initialize();
     }
     
     final shouldUseSamsung = preferSamsung ?? instance._isSamsung;
+    debugPrint('Requesting permissions - shouldUseSamsung: $shouldUseSamsung');
     
+    bool result;
     if (shouldUseSamsung) {
       debugPrint('Requesting Samsung Health permissions');
-      return await SamsungHealthService.requestPermission();
+      result = await SamsungHealthService.requestPermission();
     } else {
       debugPrint('Requesting Google Fit permissions');
-      return await GoogleFitService.requestPermission(preferSamsung: false);
+      result = await GoogleFitService.requestPermission(preferSamsung: false);
     }
+    
+    debugPrint('Permission request result: $result');
+    return result;
   }
 
   bool get _hasBeenInitialized => _isSamsung ? _samsungHealthService != null : _googleFitService != null;
@@ -70,15 +76,23 @@ class HealthService {
   /// Check if all health permissions are granted
   Future<bool> checkAllPermissionsGranted() async {
     if (!_hasBeenInitialized) {
+      debugPrint('HealthService not initialized, initializing now...');
       await initialize();
     }
     
+    debugPrint('Checking health permissions - isSamsung: $_isSamsung');
+    
     if (_isSamsung && _samsungHealthService != null) {
-      return await _samsungHealthService!.checkAllPermissionsGranted();
+      final granted = await _samsungHealthService!.checkAllPermissionsGranted();
+      debugPrint('Samsung Health permissions check result: $granted');
+      return granted;
     } else if (_googleFitService != null) {
-      return await _googleFitService!.checkAllPermissionsGranted();
+      final granted = await _googleFitService!.checkAllPermissionsGranted();
+      debugPrint('Google Fit permissions check result: $granted');
+      return granted;
     }
     
+    debugPrint('No health service available');
     return false;
   }
 

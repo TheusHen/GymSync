@@ -16,8 +16,7 @@ class SamsungHealthService {
 
   static Future<bool> requestPermission() async {
     try {
-      // For now, we'll use basic Android permissions since samsung_health_handler
-      // has limited functionality. In a real implementation, you'd use Samsung Health SDK
+      // Request basic Android permissions first
       final permissions = [
         Permission.activityRecognition,
         Permission.sensors,
@@ -25,10 +24,18 @@ class SamsungHealthService {
       ];
       
       final statuses = await permissions.request();
-      final allGranted = statuses.values.every((status) => status.isGranted);
+      final basicPermissionsGranted = statuses.values.every((status) => status.isGranted);
       
-      debugPrint('Samsung Health permissions requested: $allGranted');
-      return allGranted;
+      debugPrint('Samsung Health basic permissions granted: $basicPermissionsGranted');
+      
+      // For Samsung Health, we need to guide user to open Samsung Health app
+      // since we can't directly request Samsung Health permissions via Flutter
+      if (basicPermissionsGranted) {
+        debugPrint('Basic permissions granted. Samsung Health access should be configured in Samsung Health app.');
+        return true; // Return true if basic permissions are granted
+      }
+      
+      return false;
     } catch (e) {
       debugPrint('Error requesting Samsung Health permissions: $e');
       return false;
@@ -37,12 +44,23 @@ class SamsungHealthService {
 
   Future<bool> checkAllPermissionsGranted() async {
     try {
-      // Basic permission check
+      // Check basic Android permissions
       final activity = await Permission.activityRecognition.isGranted;
       final sensors = await Permission.sensors.isGranted;
       final location = await Permission.locationWhenInUse.isGranted;
       
-      return activity && sensors && location;
+      final basicPermissions = activity && sensors && location;
+      debugPrint('Samsung Health basic permissions check: activity=$activity, sensors=$sensors, location=$location');
+      
+      // For Samsung Health, if basic permissions are granted, assume Samsung Health is accessible
+      // In a real implementation, you'd check Samsung Health app permissions specifically
+      if (basicPermissions) {
+        debugPrint('Samsung Health permissions check: granted (basic permissions OK)');
+        return true;
+      }
+      
+      debugPrint('Samsung Health permissions check: not granted');
+      return false;
     } catch (e) {
       debugPrint('Samsung Health permissions check failed: $e');
       return false;

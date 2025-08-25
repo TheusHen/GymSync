@@ -94,17 +94,33 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   }
 
   Future<bool> _checkHealthPermissions() async {
-    final activity = await Permission.activityRecognition.status;
-    final sensors = await Permission.sensors.status;
-    final location = await Permission.locationWhenInUse.status;
-    bool notificationGranted = true;
-    if (Platform.isAndroid) {
-      notificationGranted = await Permission.notification.isGranted;
-    }
-    if (!activity.isGranted || !sensors.isGranted || !location.isGranted || !notificationGranted) {
+    try {
+      // Check basic Android permissions first
+      final activity = await Permission.activityRecognition.status;
+      final sensors = await Permission.sensors.status;
+      final location = await Permission.locationWhenInUse.status;
+      bool notificationGranted = true;
+      
+      if (Platform.isAndroid) {
+        notificationGranted = await Permission.notification.isGranted;
+      }
+      
+      debugPrint('Basic permissions: activity=${activity.isGranted}, sensors=${sensors.isGranted}, location=${location.isGranted}, notification=$notificationGranted');
+      
+      if (!activity.isGranted || !sensors.isGranted || !location.isGranted || !notificationGranted) {
+        debugPrint('Basic permissions not granted');
+        return false;
+      }
+      
+      // Check health service permissions
+      final healthServiceGranted = await HealthService().checkAllPermissionsGranted();
+      debugPrint('Health service permissions granted: $healthServiceGranted');
+      
+      return healthServiceGranted;
+    } catch (e) {
+      debugPrint('Error checking health permissions: $e');
       return false;
     }
-    return await HealthService().checkAllPermissionsGranted();
   }
 
   Future<void> connectDiscord() async {
@@ -133,18 +149,124 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   Future<void> enableHealth() async {
     if (requestingHealth) return;
     setState(() => requestingHealth = true);
-    final granted = await HealthService.requestPermission(
-      preferSamsung: isSamsung,
-    );
-    await _refreshHealthStatus();
-    setState(() => requestingHealth = false);
-    await _saveProgress();
-    if (!healthGranted && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Health access permission is mandatory. Please grant permissions in settings.')),
+    
+    try {
+      final granted = await HealthService.requestPermission(
+        preferSamsung: isSamsung,
       );
+      
+      debugPrint('Health permission request result: $granted');
+      
+      // Always refresh status after permission request
+      await _refreshHealthStatus();
+      
+      if (!healthGranted && mounted) {
+        // Show helpful dialog instead of just a snackbar
+        _showHealthPermissionDialog();
+      } else if (healthGranted && mounted) {
+        // Show success message
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Health permissions granted successfully!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint('Error requesting health permissions: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error requesting permissions. Please try again.'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      setState(() => requestingHealth = false);
+      await _saveProgress();
+      if (_allCompleted()) _goToHome();
     }
-    if (_allCompleted()) _goToHome();
+  }
+
+  void _showHealthPermissionDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Health Permissions Required'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              isSamsung 
+                ? 'To track your workouts, GymSync needs access to Samsung Health.'
+                : 'To track your workouts, GymSync needs access to Google Fit.',
+              style: TextStyle(fontSize: 16),
+            ),
+            SizedBox(height: 16),
+            Text(
+              'Please follow these steps:',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+            SizedBox(height: 8),
+            if (isSamsung) ...[
+              Text('1. Open Samsung Health app'),
+              Text('2. Go to Settings > Permissions'),
+              Text('3. Allow GymSync to access your data'),
+              Text('4. Return to GymSync and try again'),
+            ] else ...[
+              Text('1. Open Google Fit app'),
+              Text('2. Make sure Google Fit is set up'),
+              Text('3. Grant permissions when prompted'),
+              Text('4. Return to GymSync and try again'),
+            ],
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: Text('Later'),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.of(context).pop();
+              // Try to open the health app settings
+              await _openHealthAppSettings();
+            },
+            child: Text('Open Settings'),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.of(context).pop();
+              // Try requesting permissions again
+              enableHealth();
+            },
+            child: Text('Try Again'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _openHealthAppSettings() async {
+    try {
+      if (isSamsung) {
+        // Try to open Samsung Health
+        // In a real app, you'd use url_launcher to open samsung health://
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Please open Samsung Health app manually')),
+        );
+      } else {
+        // Try to open Google Fit
+        // In a real app, you'd use url_launcher to open Google Fit
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Please open Google Fit app manually')),
+        );
+      }
+    } catch (e) {
+      debugPrint('Error opening health app: $e');
+    }
   }
 
   @override
