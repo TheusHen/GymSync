@@ -79,16 +79,65 @@ function getImageKeyForActivity(activity) {
 }
 
 // === Auto-launch configuration ===
-let exePath = process.execPath;
-if (process.platform === "win32") {
-  // Force exe path for packaged app on Windows
-  const exeName = "GymSync Presence.exe";
-  exePath = path.join(process.cwd(), exeName);
+function getExecutablePath() {
+  // For development mode
+  if (process.env.NODE_ENV === 'development' || !app.isPackaged) {
+    return process.execPath;
+  }
+  
+  // For packaged applications
+  const appName = "GymSync Presence";
+  let exePath = process.execPath;
+  
+  if (process.platform === "win32") {
+    // Windows: Try multiple possible locations
+    const possiblePaths = [
+      path.join(process.cwd(), `${appName}.exe`),
+      path.join(path.dirname(process.execPath), `${appName}.exe`),
+      process.execPath
+    ];
+    
+    for (const testPath of possiblePaths) {
+      if (fs.existsSync(testPath)) {
+        exePath = testPath;
+        break;
+      }
+    }
+  } else if (process.platform === "darwin") {
+    // macOS: Should be the app bundle
+    if (process.execPath.includes(".app")) {
+      exePath = process.execPath;
+    } else {
+      // Fallback: try to find the .app bundle
+      const appPath = process.execPath.split(".app")[0] + ".app";
+      if (fs.existsSync(appPath)) {
+        exePath = appPath;
+      }
+    }
+  } else if (process.platform === "linux") {
+    // Linux: Use the actual executable name
+    const possiblePaths = [
+      path.join(path.dirname(process.execPath), "gymsync-presence"),
+      process.execPath
+    ];
+    
+    for (const testPath of possiblePaths) {
+      if (fs.existsSync(testPath)) {
+        exePath = testPath;
+        break;
+      }
+    }
+  }
+  
+  log(`Auto-launch executable path: ${exePath}`);
+  return exePath;
 }
+
 const appLauncher = new AutoLaunch({
   name: "GymSync Presence",
-  path: exePath,
+  path: getExecutablePath(),
   isHidden: true,
+  args: ["--hidden"],
 });
 
 function ensureAutoLaunch() {
@@ -128,6 +177,11 @@ function createTray() {
       {
         label: "Show Window",
         click: () => {
+          // Show dock icon on macOS when showing window
+          if (process.platform === "darwin" && app.dock) {
+            app.dock.show();
+          }
+          
           if (mainWindow) {
             mainWindow.show();
           } else {
@@ -154,6 +208,11 @@ function createTray() {
 
     if (process.platform === "darwin") {
       tray.on("click", () => {
+        // Show dock icon on macOS when showing window
+        if (app.dock) {
+          app.dock.show();
+        }
+        
         if (mainWindow) {
           mainWindow.show();
         } else {
@@ -167,11 +226,29 @@ function createTray() {
   }
 }
 
+// === Startup behavior ===
+const shouldStartHidden = process.argv.includes('--hidden') || 
+                         process.argv.includes('--startup') ||
+                         app.getLoginItemSettings().wasOpenedAsHidden;
+
 app.whenReady().then(() => {
   log("Electron app ready event fired.");
+  log(`Should start hidden: ${shouldStartHidden}`);
+  
+  // Hide dock icon on macOS for background mode
+  if (shouldStartHidden && process.platform === "darwin") {
+    app.dock.hide();
+  }
+  
   ensureAutoLaunch();
   createTray();
-  createOAuthWindow();
+  
+  // Only create OAuth window if not starting hidden
+  if (!shouldStartHidden) {
+    createOAuthWindow();
+  } else {
+    log("Starting in background mode - OAuth window not created initially.");
+  }
 });
 
 // === Prompt for RPC title ===
