@@ -9,9 +9,6 @@
 [Presence Desktop](./apps/presence) |
 [Host your own backend](#hosting-the-backend-online)
 
-# Running
-![Running Video](https://github.com/TheusHen/GymSync/raw/refs/heads/main/.github/assets/running.mp4)
-
 # Get Started
 
 ## Build the Project
