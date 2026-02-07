@@ -10,6 +10,7 @@ import '../core/services/health_service.dart';
 import '../core/services/notification_service.dart';
 import '../core/services/background_location_service.dart';
 import '../core/services/foreground_workout_service.dart';
+import '../core/services/workout_stats_service.dart';
 import 'settings_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:latlong2/latlong.dart';
@@ -630,6 +631,16 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void onStop() async {
     await BackendService.stop();
+    
+    // Record workout statistics
+    if (elapsed.inSeconds > 0) {
+      await WorkoutStatsService().recordWorkout(
+        activityType: activity,
+        duration: elapsed,
+      );
+      debugPrint('Workout recorded: $activity for ${elapsed.inMinutes} minutes');
+    }
+    
     setState(() {
       running = false;
       paused = false;

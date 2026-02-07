@@ -2,8 +2,11 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../widgets/animated_button.dart';
+import '../widgets/workout_stats_widgets.dart';
 import '../core/services/location_service.dart';
 import '../core/services/discord_service.dart';
+import '../core/services/workout_stats_service.dart';
+import 'wrapped_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../core/services/notification_service.dart';
 import '../main.dart';
@@ -110,6 +113,92 @@ class _SettingsScreenState extends State<SettingsScreen> {
       body: ListView(
         padding: const EdgeInsets.all(24),
         children: [
+          // Statistics Section
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 8.0),
+            child: Text(
+              'ESTATÍSTICAS',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.bold,
+                color: Colors.grey,
+              ),
+            ),
+          ),
+          const WorkoutStatsCard(),
+          const SizedBox(height: 20),
+          WrappedAccessButton(
+            year: DateTime.now().year,
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => WrappedScreen(year: DateTime.now().year),
+                ),
+              );
+            },
+          ),
+          const SizedBox(height: 10),
+          ListTile(
+            leading: const Icon(Icons.auto_awesome),
+            title: const Text('Wrapped de Anos Anteriores'),
+            trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+            onTap: () async {
+              final years = await WorkoutStatsService().getAvailableWrappedYears();
+              if (years.isEmpty && context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Nenhum Wrapped disponível ainda'),
+                  ),
+                );
+                return;
+              }
+              if (context.mounted) {
+                showDialog(
+                  context: context,
+                  builder: (ctx) => AlertDialog(
+                    title: const Text('Escolha um Ano'),
+                    content: SizedBox(
+                      width: double.maxFinite,
+                      child: ListView.builder(
+                        shrinkWrap: true,
+                        itemCount: years.length,
+                        itemBuilder: (context, index) {
+                          final year = years[index];
+                          return ListTile(
+                            title: Text('Wrapped $year'),
+                            trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                            onTap: () {
+                              Navigator.pop(ctx);
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => WrappedScreen(year: year),
+                                ),
+                              );
+                            },
+                          );
+                        },
+                      ),
+                    ),
+                  ),
+                );
+              }
+            },
+          ),
+          const Divider(height: 40),
+          // App Settings Section
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 8.0),
+            child: Text(
+              'CONFIGURAÇÕES',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.bold,
+                color: Colors.grey,
+              ),
+            ),
+          ),
           ListTile(
             leading: const Icon(Icons.place),
             title: const Text('Reconfigure gym location'),
