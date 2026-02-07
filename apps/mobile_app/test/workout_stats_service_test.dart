@@ -364,7 +364,7 @@ void main() {
   });
 
   group('AnnualWrapped Model Tests', () {
-    test('Get month names in Portuguese', () {
+    test('Get month names in English', () {
       final wrapped = AnnualWrapped(
         year: 2026,
         totalDuration: Duration.zero,
@@ -382,12 +382,12 @@ void main() {
         dailyBreakdown: {},
       );
 
-      expect(wrapped.getMonthName(1), 'Janeiro');
-      expect(wrapped.getMonthName(3), 'Março');
-      expect(wrapped.getMonthName(12), 'Dezembro');
+      expect(wrapped.getMonthName(1), 'January');
+      expect(wrapped.getMonthName(3), 'March');
+      expect(wrapped.getMonthName(12), 'December');
     });
 
-    test('Get weekday names in Portuguese', () {
+    test('Get weekday names in English', () {
       final wrapped = AnnualWrapped(
         year: 2026,
         totalDuration: Duration.zero,
@@ -405,9 +405,9 @@ void main() {
         dailyBreakdown: {},
       );
 
-      expect(wrapped.getWeekdayName(1), 'Segunda');
-      expect(wrapped.getWeekdayName(3), 'Quarta');
-      expect(wrapped.getWeekdayName(7), 'Domingo');
+      expect(wrapped.getWeekdayName(1), 'Monday');
+      expect(wrapped.getWeekdayName(3), 'Wednesday');
+      expect(wrapped.getWeekdayName(7), 'Sunday');
     });
 
     test('Format total hours', () {

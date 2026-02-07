@@ -243,7 +243,7 @@ class _WrappedScreenState extends State<WrappedScreen> {
       child: Padding(
         padding: EdgeInsets.all(24),
         child: Text(
-          'Nao foi possivel carregar seu Wrapped.',
+          'Could not load your Wrapped.',
           textAlign: TextAlign.center,
           style: TextStyle(
             color: Colors.white70,
@@ -311,8 +311,8 @@ class _WrappedScreenState extends State<WrappedScreen> {
   Widget _buildIntroPage() {
     return _buildPageShell(
       accentColor: const Color(0xFFFFD166),
-      title: 'Seu ano em treino',
-      subtitle: 'Resumo rapido da sua consistencia e volume.',
+      title: 'Your year in training',
+      subtitle: 'Quick summary of your consistency and volume.',
       child: Column(
         children: [
           const Icon(
@@ -322,13 +322,13 @@ class _WrappedScreenState extends State<WrappedScreen> {
           ),
           const SizedBox(height: 24),
           _buildMetricHighlight(
-            label: 'Total de treinos',
+            label: 'Total workouts',
             value: '${_wrapped!.totalWorkouts}',
             color: const Color(0xFFFFD166),
           ),
           const SizedBox(height: 14),
           _buildMetricHighlight(
-            label: 'Tempo investido',
+            label: 'Time invested',
             value: '${_wrapped!.totalHours}h',
             color: const Color(0xFF66D9FF),
           ),
@@ -347,12 +347,12 @@ class _WrappedScreenState extends State<WrappedScreen> {
 
     return _buildPageShell(
       accentColor: const Color(0xFF4CEB83),
-      title: 'Volume total',
-      subtitle: 'Quanto voce treinou no ano inteiro.',
+      title: 'Total volume',
+      subtitle: 'How much you trained this entire year.',
       child: Column(
         children: [
           _buildMetricHighlight(
-            label: 'Horas treinadas',
+            label: 'Hours trained',
             value: '${_wrapped!.totalHours}h',
             color: const Color(0xFF4CEB83),
           ),
@@ -362,7 +362,7 @@ class _WrappedScreenState extends State<WrappedScreen> {
               Expanded(
                 child: _buildStatCard(
                   icon: Icons.fitness_center_rounded,
-                  title: 'Treinos',
+                  title: 'Workouts',
                   value: '${_wrapped!.totalWorkouts}',
                   color: const Color(0xFF66D9FF),
                 ),
@@ -371,7 +371,7 @@ class _WrappedScreenState extends State<WrappedScreen> {
               Expanded(
                 child: _buildStatCard(
                   icon: Icons.bolt_rounded,
-                  title: 'Media/treino',
+                  title: 'Avg/workout',
                   value: _formatDurationCompact(averagePerWorkout),
                   color: const Color(0xFFFFC857),
                 ),
@@ -397,9 +397,9 @@ class _WrappedScreenState extends State<WrappedScreen> {
 
     return _buildPageShell(
       accentColor: const Color(0xFF32D7C8),
-      title: 'Heatmap do ano',
+      title: 'Year heatmap',
       subtitle:
-          'Cada bloco e um dia. Cor mais forte significa mais tempo de treino.',
+          'Each block is a day. Darker color means more training time.',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -409,14 +409,14 @@ class _WrappedScreenState extends State<WrappedScreen> {
             children: [
               _buildInsightChip(
                 icon: Icons.calendar_month_rounded,
-                text: '${_wrapped!.activeTrainingDays} dias ativos',
+                text: '${_wrapped!.activeTrainingDays} active days',
                 color: const Color(0xFF32D7C8),
               ),
               _buildInsightChip(
                 icon: Icons.local_fire_department_rounded,
                 text: bestDay == null
-                    ? 'Sem dia destaque'
-                    : 'Pico: ${_formatDateShort(bestDay)} (${_formatDurationCompact(bestDayDuration)})',
+                    ? 'No peak day'
+                    : 'Peak: ${_formatDateShort(bestDay)} (${_formatDurationCompact(bestDayDuration)})',
                 color: const Color(0xFFFF7B72),
               ),
             ],
@@ -511,7 +511,7 @@ class _WrappedScreenState extends State<WrappedScreen> {
     return Row(
       children: [
         const Text(
-          'menos',
+          'less',
           style: TextStyle(color: Colors.white54, fontSize: 11),
         ),
         const SizedBox(width: 8),
@@ -529,7 +529,7 @@ class _WrappedScreenState extends State<WrappedScreen> {
         }),
         const SizedBox(width: 4),
         const Text(
-          'mais',
+          'more',
           style: TextStyle(color: Colors.white54, fontSize: 11),
         ),
       ],
@@ -540,8 +540,8 @@ class _WrappedScreenState extends State<WrappedScreen> {
     if (_wrapped!.favoriteActivity.isEmpty || _wrapped!.activityBreakdown.isEmpty) {
       return _buildPageShell(
         accentColor: const Color(0xFF66D9FF),
-        title: 'Atividades',
-        subtitle: 'Nenhuma atividade registrada nesse ano.',
+        title: 'Activities',
+        subtitle: 'No activities recorded this year.',
         child: const SizedBox.shrink(),
       );
     }
@@ -551,8 +551,8 @@ class _WrappedScreenState extends State<WrappedScreen> {
 
     return _buildPageShell(
       accentColor: const Color(0xFF66D9FF),
-      title: 'Atividade favorita',
-      subtitle: 'Seu foco principal no ano.',
+      title: 'Favorite activity',
+      subtitle: 'Your main focus this year.',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -609,8 +609,8 @@ class _WrappedScreenState extends State<WrappedScreen> {
 
     return _buildPageShell(
       accentColor: const Color(0xFFFFB347),
-      title: 'Mes mais forte',
-      subtitle: 'Quando seu treino mais rendeu.',
+      title: 'Strongest month',
+      subtitle: 'When your training performed best.',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -689,8 +689,8 @@ class _WrappedScreenState extends State<WrappedScreen> {
 
     return _buildPageShell(
       accentColor: const Color(0xFFA78BFA),
-      title: 'Dia favorito',
-      subtitle: 'Seu melhor ritmo semanal.',
+      title: 'Favorite day',
+      subtitle: 'Your best weekly rhythm.',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -765,8 +765,8 @@ class _WrappedScreenState extends State<WrappedScreen> {
   Widget _buildStreakPage() {
     return _buildPageShell(
       accentColor: const Color(0xFFFF7B72),
-      title: 'Consistencia',
-      subtitle: 'Sua maior sequencia de dias treinando.',
+      title: 'Consistency',
+      subtitle: 'Your longest streak of training days.',
       child: Column(
         children: [
           const Icon(
@@ -776,10 +776,10 @@ class _WrappedScreenState extends State<WrappedScreen> {
           ),
           const SizedBox(height: 18),
           _buildMetricHighlight(
-            label: 'Maior streak',
+            label: 'Longest streak',
             value: _wrapped!.longestStreak == 1
-                ? '1 dia'
-                : '${_wrapped!.longestStreak} dias',
+                ? '1 day'
+                : '${_wrapped!.longestStreak} days',
             color: const Color(0xFFFF7B72),
           ),
           const SizedBox(height: 14),
@@ -797,8 +797,8 @@ class _WrappedScreenState extends State<WrappedScreen> {
     final nextYear = widget.year + 1;
     return _buildPageShell(
       accentColor: const Color(0xFFFFD166),
-      title: '${widget.year} fechado',
-      subtitle: 'Voce concluiu mais um ano forte.',
+      title: '${widget.year} complete',
+      subtitle: 'You finished another strong year.',
       child: Column(
         children: [
           const Icon(
@@ -808,7 +808,7 @@ class _WrappedScreenState extends State<WrappedScreen> {
           ),
           const SizedBox(height: 20),
           Text(
-            'Foram ${_wrapped!.totalWorkouts} treinos e ${_wrapped!.totalHours}h dedicadas ao seu bem-estar.',
+            'That was ${_wrapped!.totalWorkouts} workouts and ${_wrapped!.totalHours}h dedicated to your well-being.',
             textAlign: TextAlign.center,
             style: const TextStyle(
               color: Colors.white,
@@ -827,7 +827,7 @@ class _WrappedScreenState extends State<WrappedScreen> {
               borderRadius: BorderRadius.circular(14),
             ),
             child: Text(
-              'Meta: deixar $nextYear ainda melhor.',
+              'Goal: make $nextYear even better.',
               textAlign: TextAlign.center,
               style: const TextStyle(
                 color: Colors.white,
@@ -986,10 +986,10 @@ class _WrappedScreenState extends State<WrappedScreen> {
 
   String _buildHeatTooltip(DateTime date, bool isInYear, Duration duration) {
     if (!isInYear) {
-      return 'Fora de ${widget.year}';
+      return 'Outside ${widget.year}';
     }
     if (duration <= Duration.zero) {
-      return '${_formatDateShort(date)}: sem treino';
+      return '${_formatDateShort(date)}: no workout';
     }
     return '${_formatDateShort(date)}: ${_formatDurationCompact(duration)}';
   }
@@ -997,17 +997,17 @@ class _WrappedScreenState extends State<WrappedScreen> {
   String _monthShort(int month) {
     const months = [
       'Jan',
-      'Fev',
+      'Feb',
       'Mar',
-      'Abr',
-      'Mai',
+      'Apr',
+      'May',
       'Jun',
       'Jul',
-      'Ago',
-      'Set',
-      'Out',
+      'Aug',
+      'Sep',
+      'Oct',
       'Nov',
-      'Dez',
+      'Dec',
     ];
     return months[month - 1];
   }
@@ -1015,7 +1015,7 @@ class _WrappedScreenState extends State<WrappedScreen> {
   String _formatDateShort(DateTime date) {
     final day = date.day.toString().padLeft(2, '0');
     final month = date.month.toString().padLeft(2, '0');
-    return '$day/$month';
+    return '$month/$day';
   }
 
   String _formatDurationCompact(Duration duration) {
@@ -1036,17 +1036,17 @@ class _WrappedScreenState extends State<WrappedScreen> {
 
   String _streakMessage(int streak) {
     if (streak >= 30) {
-      return 'Nivel absurdo de disciplina. Continue assim.';
+      return 'Incredible level of discipline. Keep it up.';
     }
     if (streak >= 14) {
-      return 'Sequencia excelente. Seu ritmo esta muito forte.';
+      return 'Excellent streak. Your rhythm is very strong.';
     }
     if (streak >= 7) {
-      return 'Boa consistencia. Da para subir mais um nivel.';
+      return 'Good consistency. You can level up even more.';
     }
     if (streak >= 1) {
-      return 'Bom inicio. Mantendo frequencia voce evolui rapido.';
+      return 'Good start. Stay consistent and you will evolve fast.';
     }
-    return 'Comece com pequenos blocos e mantenha constancia.';
+    return 'Start with small sessions and maintain constancy.';
   }
 }

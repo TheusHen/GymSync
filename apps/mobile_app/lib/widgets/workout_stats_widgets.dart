@@ -31,7 +31,7 @@ class WorkoutStatsCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Text(
-                  'Suas Estatísticas',
+                  'Your Statistics',
                   style: TextStyle(
                     fontSize: 20,
                     fontWeight: FontWeight.bold,
@@ -39,21 +39,21 @@ class WorkoutStatsCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 20),
                 _buildStatRow(
-                  'Esta Semana',
+                  'This Week',
                   _formatDuration(stats['week']!),
                   Icons.calendar_view_week,
                   Colors.blue,
                 ),
                 const SizedBox(height: 15),
                 _buildStatRow(
-                  'Este Mês',
+                  'This Month',
                   _formatDuration(stats['month']!),
                   Icons.calendar_month,
                   Colors.green,
                 ),
                 const SizedBox(height: 15),
                 _buildStatRow(
-                  'Este Ano',
+                  'This Year',
                   _formatDuration(stats['year']!),
                   Icons.calendar_today,
                   Colors.orange,
@@ -178,7 +178,7 @@ class WrappedAccessButton extends StatelessWidget {
                   ),
                   const SizedBox(height: 5),
                   const Text(
-                    'Veja suas estatísticas do ano',
+                    'View your yearly statistics',
                     style: TextStyle(
                       color: Colors.white70,
                       fontSize: 14,
@@ -224,7 +224,7 @@ class WrappedYearsList extends StatelessWidget {
             child: Padding(
               padding: EdgeInsets.all(20.0),
               child: Text(
-                'Nenhum Wrapped disponível ainda.\nTreinos serão contabilizados automaticamente!',
+                'No Wrapped available yet.\nWorkouts will be tracked automatically!',
                 textAlign: TextAlign.center,
                 style: TextStyle(color: Colors.grey, fontSize: 16),
               ),
@@ -255,7 +255,7 @@ class WrappedYearsList extends StatelessWidget {
                     fontSize: 18,
                   ),
                 ),
-                subtitle: const Text('Toque para ver suas estatísticas'),
+                subtitle: const Text('Tap to view your statistics'),
                 trailing: const Icon(Icons.arrow_forward_ios, size: 16),
                 onTap: () => onYearSelected(year),
               ),

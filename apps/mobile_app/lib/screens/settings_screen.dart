@@ -117,7 +117,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           const Padding(
             padding: EdgeInsets.symmetric(vertical: 8.0),
             child: Text(
-              'ESTATÍSTICAS',
+              'STATISTICS',
               style: TextStyle(
                 fontSize: 14,
                 fontWeight: FontWeight.bold,
@@ -141,14 +141,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
           const SizedBox(height: 10),
           ListTile(
             leading: const Icon(Icons.auto_awesome),
-            title: const Text('Wrapped de Anos Anteriores'),
+            title: const Text('Previous Years Wrapped'),
             trailing: const Icon(Icons.arrow_forward_ios, size: 16),
             onTap: () async {
               final years = await WorkoutStatsService().getAvailableWrappedYears();
               if (years.isEmpty && context.mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(
-                    content: Text('Nenhum Wrapped disponível ainda'),
+                    content: Text('No Wrapped available yet'),
                   ),
                 );
                 return;
@@ -157,7 +157,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 showDialog(
                   context: context,
                   builder: (ctx) => AlertDialog(
-                    title: const Text('Escolha um Ano'),
+                    title: const Text('Choose a Year'),
                     content: SizedBox(
                       width: double.maxFinite,
                       child: ListView.builder(
@@ -191,7 +191,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           const Padding(
             padding: EdgeInsets.symmetric(vertical: 8.0),
             child: Text(
-              'CONFIGURAÇÕES',
+              'SETTINGS',
               style: TextStyle(
                 fontSize: 14,
                 fontWeight: FontWeight.bold,
