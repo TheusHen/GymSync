@@ -15,8 +15,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
-import 'package:flutter_background/src/android_config.dart' as fb;
-import 'package:geolocator_android/src/types/foreground_settings.dart' as ga;
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -26,7 +24,7 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   bool running = false;
-  bool paused = false; // Add paused state
+  bool paused = false;
   Duration elapsed = Duration.zero;
   String activity = 'unknown';
   String lastSession = '00:00 - unknown';
@@ -36,7 +34,6 @@ class _HomeScreenState extends State<HomeScreen> {
   bool locationChecked = false;
   Timer? _locationTimer;
   Timer? _statusTimer;
-  bool _notifEnabled = true;
   Duration lastElapsed = Duration.zero;
   String lastActivity = 'unknown';
   static bool _backgroundStarted = false;
@@ -45,30 +42,7 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     _setupApp();
-    _ensureBackgroundServiceStarted();
   }
-
-  Future<void> _ensureBackgroundServiceStarted() async {
-    if (!_backgroundStarted) {
-      _backgroundStarted = true;
-      await _requestPermissions();
-      await _startBackgroundMode();
-      await _loadGymLocation();
-      
-      // Initialize background services
-      await BackgroundLocationService.initialize();
-      ForegroundWorkoutService.initialize();
-      
-      // Start background location monitoring
-      await BackgroundLocationService().startLocationMonitoring();
-      
-      if (await Permission.ignoreBatteryOptimizations.isDenied) {
-        await Permission.ignoreBatteryOptimizations.request();
-      }
-    }
-  }
-
-
 
   Future<void> _setupApp() async {
     await _requestPermissions();
@@ -78,8 +52,18 @@ class _HomeScreenState extends State<HomeScreen> {
     await _loadGymLocation();
     await _checkIfInGym();
     await _loadBackendStatus();
-    await _restoreWorkoutState(); // Restore any ongoing workout
-    await _checkAndRequestHealthPermissions(); // Add health permissions check
+    await _restoreWorkoutState();
+    await _checkAndRequestHealthPermissions();
+
+    // Start background services only once
+    if (!_backgroundStarted) {
+      _backgroundStarted = true;
+      await BackgroundLocationService().startLocationMonitoring();
+      if (await Permission.ignoreBatteryOptimizations.isDenied) {
+        await Permission.ignoreBatteryOptimizations.request();
+      }
+    }
+
     if (inGym) {
       _startGymFlowIfNeeded();
     } else {
@@ -89,19 +73,17 @@ class _HomeScreenState extends State<HomeScreen> {
     _startActivityMonitoring();
   }
 
-  /// Restore workout state from SharedPreferences (important when app resumes)
   Future<void> _restoreWorkoutState() async {
     try {
       final prefs = await SharedPreferences.getInstance();
       final currentActivity = prefs.getString('current_activity');
       final startTime = prefs.getInt('workout_start_time');
       final pauseTime = prefs.getInt('workout_pause_time');
-      
+
       if (currentActivity != null && startTime != null) {
         final now = DateTime.now().millisecondsSinceEpoch;
-        
+
         if (pauseTime != null) {
-          // Workout was paused, restore paused state
           final pausedElapsed = Duration(milliseconds: pauseTime - startTime);
           setState(() {
             activity = currentActivity;
@@ -109,12 +91,8 @@ class _HomeScreenState extends State<HomeScreen> {
             paused = true;
             elapsed = pausedElapsed;
           });
-          debugPrint('Restored paused workout state: $currentActivity, elapsed: ${_formatElapsed(elapsed)}');
-          
-          // Start reduced location monitoring to detect return to gym
           _startReducedLocationMonitoring();
         } else {
-          // Workout was active, restore active state
           final elapsedMillis = now - startTime;
           setState(() {
             activity = currentActivity;
@@ -123,7 +101,6 @@ class _HomeScreenState extends State<HomeScreen> {
             elapsed = Duration(milliseconds: elapsedMillis);
           });
           _startStatusUpdates();
-          debugPrint('Restored active workout state: $currentActivity, elapsed: ${_formatElapsed(elapsed)}');
         }
       }
     } catch (e) {
@@ -131,28 +108,26 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  /// Check and request health permissions with proper user guidance
   Future<void> _checkAndRequestHealthPermissions() async {
     try {
       final healthService = HealthService();
       final hasPermissions = await healthService.checkAllPermissionsGranted();
-      
       if (!hasPermissions) {
         final granted = await HealthService.requestPermission();
-        if (!granted) {
+        if (!granted && mounted) {
           _showHealthPermissionDialog();
         }
       }
     } catch (e) {
       debugPrint('Error checking health permissions: $e');
-      _showHealthPermissionDialog();
     }
   }
 
   void _showHealthPermissionDialog() {
+    if (!mounted) return;
     showDialog(
       context: context,
-      builder: (BuildContext context) {
+      builder: (BuildContext ctx) {
         return AlertDialog(
           title: const Text('Health Access Required'),
           content: const Text(
@@ -161,29 +136,26 @@ class _HomeScreenState extends State<HomeScreen> {
             '1. Go to Settings\n'
             '2. Find Apps > GymSync\n'
             '3. Enable Health/Fitness permissions\n'
-            '4. Return to the app'
+            '4. Return to the app',
           ),
           actions: [
             TextButton(
               child: const Text('Open Settings'),
               onPressed: () {
-                Navigator.of(context).pop();
-                // Open app settings
+                Navigator.of(ctx).pop();
                 openAppSettings();
               },
             ),
             TextButton(
               child: const Text('Try Again'),
               onPressed: () {
-                Navigator.of(context).pop();
+                Navigator.of(ctx).pop();
                 _checkAndRequestHealthPermissions();
               },
             ),
             TextButton(
               child: const Text('Later'),
-              onPressed: () {
-                Navigator.of(context).pop();
-              },
+              onPressed: () => Navigator.of(ctx).pop(),
             ),
           ],
         );
@@ -198,11 +170,11 @@ class _HomeScreenState extends State<HomeScreen> {
       return;
     }
     HealthService().startActivityMonitoring(
-        callback: (activityType, isActive) {
-          if (!inGym && (!running || activity != activityType) && isActive) {
-            _startActivityTracking(activityType);
-          }
+      callback: (activityType, isActive) {
+        if (!inGym && (!running || activity != activityType) && isActive) {
+          _startActivityTracking(activityType);
         }
+      },
     );
   }
 
@@ -210,27 +182,25 @@ class _HomeScreenState extends State<HomeScreen> {
     if (inGym || (running && activity == activityType)) return;
     try {
       await BackendService.start(activityType);
-      
-      // Store workout start time for foreground service
+
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString('current_activity', activityType);
       await prefs.setInt('workout_start_time', DateTime.now().millisecondsSinceEpoch);
-      
+
       setState(() {
         activity = activityType;
         running = true;
         elapsed = Duration.zero;
       });
-      
-      // Start foreground service for continuous tracking
+
       await ForegroundWorkoutService().startWorkoutTracking(activityType);
-      
       _startStatusUpdates();
       _maybeUpdateNotification();
+
       if (activityType == "Walking") {
         _showCustomNotification(
-            'Walking Detected',
-            'GymSync is now tracking your walking activity.'
+          'Walking Detected',
+          'GymSync is now tracking your walking activity.',
         );
       }
     } catch (_) {}
@@ -240,19 +210,22 @@ class _HomeScreenState extends State<HomeScreen> {
     final data = await BackendService.getStatus();
     if (data != null) {
       setState(() {
-        final status = data['status'];
-        if (status != null) {
-          activity = status['activity'] ?? activity;
-          running = (status['state'] ?? 'paused') == 'active' ? true : false;
-          int seconds = int.tryParse('${status['elapsed'] ?? '0'}') ?? 0;
+        // Backend returns: { activity, time, paused }
+        final backendActivity = data['activity'];
+        final backendTime = data['time'];
+        final backendPaused = data['paused'];
+
+        if (backendActivity != null) {
+          activity = backendActivity;
+          final seconds = (backendTime is int) ? backendTime : (int.tryParse('$backendTime') ?? 0);
           elapsed = Duration(seconds: seconds);
-        }
-        final last = data['last_session'];
-        if (last != null) {
-          lastActivity = last['activity'] ?? lastActivity;
-          int seconds = int.tryParse('${last['elapsed'] ?? '0'}') ?? 0;
-          lastElapsed = Duration(seconds: seconds);
-          lastSession = '${_formatElapsed(lastElapsed)} - $lastActivity';
+          if (backendPaused == true) {
+            running = false;
+            paused = true;
+          } else {
+            running = true;
+            paused = false;
+          }
         }
       });
     }
@@ -277,27 +250,21 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _startBackgroundMode() async {
-    final hasPermissions = await FlutterBackground.hasPermissions;
-    if (!hasPermissions) {
-      await FlutterBackground.initialize(
-        androidConfig: fb.FlutterBackgroundAndroidConfig(
-          notificationTitle: "GymSync Active",
-          notificationText: "Tracking your workout and location in the background.",
-          notificationIcon: fb.AndroidResource(name: 'ic_notification'),
-          enableWifiLock: true,
-          showBadge: true,
-        ),
-      );
-    }
-    bool backgroundEnabled = false;
     try {
-      backgroundEnabled = await FlutterBackground.enableBackgroundExecution();
-    } catch (_) {}
-    if (!backgroundEnabled) {
-      _showCustomNotification(
-          'Background Execution Issue',
-          'GymSync may not work properly in the background. Please check app permissions.'
-      );
+      final hasPermissions = await FlutterBackground.hasPermissions;
+      if (!hasPermissions) {
+        await FlutterBackground.initialize(
+          androidConfig: const FlutterBackgroundAndroidConfig(
+            notificationTitle: "GymSync Active",
+            notificationText: "Tracking your workout and location in the background.",
+            notificationImportance: AndroidNotificationImportance.normal,
+            enableWifiLock: true,
+          ),
+        );
+      }
+      await FlutterBackground.enableBackgroundExecution();
+    } catch (e) {
+      debugPrint('Background execution setup failed: $e');
     }
   }
 
@@ -306,12 +273,7 @@ class _HomeScreenState extends State<HomeScreen> {
     _locationTimer?.cancel();
     _statusTimer?.cancel();
     NotificationService().cancel();
-    
-    // Stop background services
-    BackgroundLocationService().stopLocationMonitoring();
-    ForegroundWorkoutService().stopWorkoutTracking();
-    
-    FlutterBackground.disableBackgroundExecution();
+    HealthService().stopActivityMonitoring();
     super.dispose();
   }
 
@@ -335,20 +297,18 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _startLocationMonitoring() {
-    if (paused) return; // Don't start if paused
+    if (paused) return;
     _locationTimer?.cancel();
     _locationTimer = Timer.periodic(const Duration(seconds: 5), (_) async {
-      if (paused) return; // Skip if paused
+      if (paused) return;
       await _checkIfInGym();
       if (inGym && !running) {
-        // Auto-resume when entering gym while paused
         if (paused) {
           await _autoResumeFromGym();
         } else {
           _startGymFlowIfNeeded();
         }
       } else if (!inGym && running && activity == "Gym") {
-        // Auto-pause when leaving gym instead of stopping
         await _autoPauseFromGymExit();
       }
     });
@@ -359,44 +319,33 @@ class _HomeScreenState extends State<HomeScreen> {
     _locationTimer = null;
   }
 
-  /// Auto-pause workout when leaving gym
   Future<void> _autoPauseFromGymExit() async {
-    if (paused) return; // Already paused
-    
+    if (paused) return;
     debugPrint('Auto-pausing workout: left gym');
     await _pauseWorkout();
     _showCustomNotification(
       'Workout Paused',
-      'You left the gym. Your workout is paused and will resume when you return.'
+      'You left the gym. Your workout is paused and will resume when you return.',
     );
-    
-    // Stop location monitoring to save battery
     _stopLocationMonitoring();
-    
-    // Start a less frequent check to detect when user returns to gym
     _startReducedLocationMonitoring();
   }
 
-  /// Auto-resume workout when returning to gym
   Future<void> _autoResumeFromGym() async {
-    if (!paused) return; // Not paused
-    
+    if (!paused) return;
     debugPrint('Auto-resuming workout: returned to gym');
     await _resumeWorkout();
     _showCustomNotification(
       'Workout Resumed',
-      'Welcome back! Your workout has resumed from where you left off.'
+      'Welcome back! Your workout has resumed from where you left off.',
     );
-    
-    // Resume normal location monitoring
     _startLocationMonitoring();
   }
 
-  /// Start reduced frequency location monitoring while paused
   void _startReducedLocationMonitoring() {
     _locationTimer?.cancel();
     _locationTimer = Timer.periodic(const Duration(seconds: 30), (_) async {
-      if (!paused) return; // Not paused anymore
+      if (!paused) return;
       await _checkIfInGym();
       if (inGym) {
         await _autoResumeFromGym();
@@ -405,9 +354,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _startGymFlowIfNeeded() async {
-    if (running && activity == "Gym") {
-      return;
-    }
+    if (running && activity == "Gym") return;
     if (running && activity != "Gym") {
       await BackendService.stop();
       setState(() {
@@ -416,21 +363,18 @@ class _HomeScreenState extends State<HomeScreen> {
     }
     try {
       await BackendService.start("Gym");
-      
-      // Store workout start time for foreground service
+
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString('current_activity', "Gym");
       await prefs.setInt('workout_start_time', DateTime.now().millisecondsSinceEpoch);
-      
+
       setState(() {
         activity = "Gym";
         running = true;
         elapsed = Duration.zero;
       });
-      
-      // Start foreground service for continuous tracking
+
       await ForegroundWorkoutService().startWorkoutTracking("Gym");
-      
       _startStatusUpdates();
       _maybeUpdateNotification();
     } catch (_) {
@@ -442,17 +386,17 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  /// Status update timer: uses heartbeat() instead of start() to keep session alive.
+  /// Sends heartbeat every 10 seconds instead of every 1 second.
   void _startStatusUpdates() {
     _statusTimer?.cancel();
     _statusTimer = Timer.periodic(const Duration(seconds: 1), (_) async {
       if (!running) return;
-      
-      // Synchronize elapsed time with stored start time for accuracy
+
+      // Update elapsed time locally
       await _synchronizeElapsedTime();
-      
-      await BackendService.start(activity);
       _maybeUpdateNotification();
-      
+
       // Update foreground service notification
       if (ForegroundWorkoutService().isRunning) {
         await ForegroundWorkoutService().updateWorkoutNotification(
@@ -461,19 +405,30 @@ class _HomeScreenState extends State<HomeScreen> {
         );
       }
     });
+
+    // Separate heartbeat timer - every 30 seconds to keep backend alive
+    _startHeartbeatTimer();
   }
 
-  /// Synchronize elapsed time with the stored start time from SharedPreferences
+  Timer? _heartbeatTimer;
+
+  void _startHeartbeatTimer() {
+    _heartbeatTimer?.cancel();
+    _heartbeatTimer = Timer.periodic(const Duration(seconds: 30), (_) async {
+      if (!running) return;
+      await BackendService.heartbeat();
+    });
+  }
+
   Future<void> _synchronizeElapsedTime() async {
     try {
       final prefs = await SharedPreferences.getInstance();
       final startTime = prefs.getInt('workout_start_time');
-      
+
       if (startTime != null) {
         final now = DateTime.now().millisecondsSinceEpoch;
         final calculatedElapsed = Duration(milliseconds: now - startTime);
-        
-        // Only update if the difference is significant (to avoid flickering)
+
         if ((calculatedElapsed.inSeconds - elapsed.inSeconds).abs() > 2) {
           setState(() {
             elapsed = calculatedElapsed;
@@ -498,6 +453,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void _stopStatusUpdates() {
     _statusTimer?.cancel();
+    _heartbeatTimer?.cancel();
   }
 
   Future<void> _loadGymLocation() async {
@@ -524,13 +480,10 @@ class _HomeScreenState extends State<HomeScreen> {
     }
     try {
       final pos = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.high,
-        timeLimit: const Duration(seconds: 5),
-      ).timeout(
-        const Duration(seconds: 10),
-        onTimeout: () {
-          throw TimeoutException('Location request timed out');
-        },
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+          timeLimit: Duration(seconds: 5),
+        ),
       );
       final Distance distance = Distance();
       final double dist = distance(
@@ -547,10 +500,6 @@ class _HomeScreenState extends State<HomeScreen> {
         _showGymArrivalNotification();
       }
     } catch (_) {
-      setState(() {
-        inGym = false;
-        locationChecked = true;
-      });
       try {
         final lastPos = await Geolocator.getLastKnownPosition();
         if (lastPos != null) {
@@ -561,23 +510,32 @@ class _HomeScreenState extends State<HomeScreen> {
           );
           setState(() {
             inGym = dist <= gymRadiusMeters;
+            locationChecked = true;
+          });
+        } else {
+          setState(() {
+            locationChecked = true;
           });
         }
-      } catch (_) {}
+      } catch (_) {
+        setState(() {
+          locationChecked = true;
+        });
+      }
     }
   }
 
   void _showGymArrivalNotification() {
     if (!NotificationService().enabled) return;
     _showCustomNotification(
-        'Welcome to the Gym!',
-        'Your workout timer has started automatically.'
+      'Welcome to the Gym!',
+      'Your workout timer has started automatically.',
     );
   }
 
   Future<void> _showCustomNotification(String title, String body) async {
-    final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
-    FlutterLocalNotificationsPlugin();
+    final FlutterLocalNotificationsPlugin plugin =
+        FlutterLocalNotificationsPlugin();
     const AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
       'gym_arrival_channel',
       'Gym Arrival',
@@ -586,7 +544,7 @@ class _HomeScreenState extends State<HomeScreen> {
       priority: Priority.high,
       icon: 'ic_notification',
     );
-    await flutterLocalNotificationsPlugin.show(
+    await plugin.show(
       2,
       title,
       body,
@@ -601,20 +559,26 @@ class _HomeScreenState extends State<HomeScreen> {
     final exerciseType = await HealthService().getCurrentActiveExerciseType();
     if (exerciseType != null && !running) {
       await BackendService.start(exerciseType);
+
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('current_activity', exerciseType);
+      await prefs.setInt('workout_start_time', DateTime.now().millisecondsSinceEpoch);
+
       setState(() {
         activity = exerciseType;
         running = true;
         elapsed = Duration.zero;
       });
+
+      await ForegroundWorkoutService().startWorkoutTracking(exerciseType);
       _startStatusUpdates();
       _maybeUpdateNotification();
     }
   }
 
-  /// Internal pause method (different from user-triggered pause)
   Future<void> _pauseWorkout() async {
     if (!running || paused) return;
-    
+
     await BackendService.pause();
     setState(() {
       paused = true;
@@ -622,88 +586,66 @@ class _HomeScreenState extends State<HomeScreen> {
     });
     _stopStatusUpdates();
     NotificationService().cancel();
-    
-    // Stop foreground service when pausing
     await ForegroundWorkoutService().stopWorkoutTracking();
-    
-    // Store pause time for proper resume
+
     final prefs = await SharedPreferences.getInstance();
     await prefs.setInt('workout_pause_time', DateTime.now().millisecondsSinceEpoch);
   }
 
-  /// Internal resume method (different from user-triggered resume)
   Future<void> _resumeWorkout() async {
     if (!paused) return;
-    
+
     await BackendService.resume();
     setState(() {
       paused = false;
       running = true;
     });
-    
-    // Adjust workout start time to account for pause duration
+
     final prefs = await SharedPreferences.getInstance();
     final pauseTime = prefs.getInt('workout_pause_time');
     final currentStartTime = prefs.getInt('workout_start_time');
-    
+
     if (pauseTime != null && currentStartTime != null) {
       final pauseDuration = DateTime.now().millisecondsSinceEpoch - pauseTime;
       final newStartTime = currentStartTime + pauseDuration;
       await prefs.setInt('workout_start_time', newStartTime);
       await prefs.remove('workout_pause_time');
     }
-    
-    // Restart foreground service
+
     await ForegroundWorkoutService().startWorkoutTracking(activity);
-    
     _startStatusUpdates();
     _maybeUpdateNotification();
   }
 
   void onPause() async {
     await _pauseWorkout();
-    // Stop location monitoring when user manually pauses
     _stopLocationMonitoring();
     _startReducedLocationMonitoring();
-    
-    await _loadBackendStatus();
   }
 
   void onResume() async {
     await _resumeWorkout();
-    // Resume normal location monitoring when user manually resumes
     _startLocationMonitoring();
-    
-    await _loadBackendStatus();
   }
 
   void onStop() async {
     await BackendService.stop();
     setState(() {
       running = false;
-      paused = false; // Clear paused state
+      paused = false;
       lastSession = '${_formatElapsed(elapsed)} - $activity';
       elapsed = Duration.zero;
     });
     _stopStatusUpdates();
     NotificationService().cancel();
-    
-    // Stop foreground service when stopping workout
     await ForegroundWorkoutService().stopWorkoutTracking();
-    
-    // Stop location monitoring
-    _stopLocationMonitoring();
-    
-    // Clear workout data from preferences
+
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('current_activity');
     await prefs.remove('workout_start_time');
     await prefs.remove('workout_pause_time');
-    
-    // Resume normal location monitoring for gym detection
+
     _startLocationMonitoring();
-    
-    await _loadBackendStatus();
   }
 
   String _formatElapsed(Duration d) {
@@ -711,8 +653,6 @@ class _HomeScreenState extends State<HomeScreen> {
     final s = d.inSeconds.remainder(60).toString().padLeft(2, '0');
     return '${d.inHours > 0 ? '${d.inHours}:' : ''}$m:$s';
   }
-
-  void _doNothing() {}
 
   @override
   Widget build(BuildContext context) {
@@ -737,63 +677,63 @@ class _HomeScreenState extends State<HomeScreen> {
       body: SafeArea(
         child: locationChecked
             ? Center(
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                CircularTimer(
-                  running: running && !paused,
-                  duration: elapsed,
-                  activity: activity,
-                ),
-                const SizedBox(height: 24),
-                if (paused)
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                    decoration: BoxDecoration(
-                      color: Colors.orange.withOpacity(0.2),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: const Text(
-                      'Workout Paused',
-                      style: TextStyle(
-                        color: Colors.orange,
-                        fontWeight: FontWeight.bold,
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      CircularTimer(
+                        running: running && !paused,
+                        duration: elapsed,
+                        activity: activity,
                       ),
-                    ),
+                      const SizedBox(height: 24),
+                      if (paused)
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: Colors.orange.withValues(alpha: 0.2),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: const Text(
+                            'Workout Paused',
+                            style: TextStyle(
+                              color: Colors.orange,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      const SizedBox(height: 16),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          AnimatedButton(
+                            text: (running && !paused) ? 'Pause' : 'Resume',
+                            onPressed: controlsEnabled
+                                ? ((running && !paused) ? onPause : onResume)
+                                : () {},
+                            enabled: controlsEnabled,
+                          ),
+                          const SizedBox(width: 16),
+                          AnimatedButton(
+                            text: 'Stop',
+                            onPressed: controlsEnabled ? onStop : () {},
+                            enabled: controlsEnabled,
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 32),
+                      Text(
+                        'Last session: $lastSession',
+                        style: const TextStyle(fontSize: 16),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 24),
+                      const DiscordStatusIndicator(),
+                    ],
                   ),
-                const SizedBox(height: 16),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    AnimatedButton(
-                      text: (running && !paused) ? 'Pause' : 'Resume',
-                      onPressed: controlsEnabled
-                          ? ((running && !paused) ? onPause : onResume)
-                          : _doNothing,
-                      enabled: controlsEnabled,
-                    ),
-                    const SizedBox(width: 16),
-                    AnimatedButton(
-                      text: 'Stop',
-                      onPressed: controlsEnabled ? onStop : _doNothing,
-                      enabled: controlsEnabled,
-                    ),
-                  ],
                 ),
-                const SizedBox(height: 32),
-                Text(
-                  'Last session: $lastSession',
-                  style: const TextStyle(fontSize: 16),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 24),
-                const DiscordStatusIndicator(),
-              ],
-            ),
-          ),
-        )
+              )
             : const Center(child: CircularProgressIndicator()),
       ),
     );

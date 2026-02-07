@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:isolate';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -14,9 +13,7 @@ class ForegroundWorkoutService {
   ForegroundWorkoutService._internal();
 
   bool _isRunning = false;
-  ReceivePort? _receivePort;
 
-  /// Initialize the foreground service
   static void initialize() {
     FlutterForegroundTask.init(
       androidNotificationOptions: AndroidNotificationOptions(
@@ -25,7 +22,6 @@ class ForegroundWorkoutService {
         channelDescription: 'Notification channel for workout tracking',
         channelImportance: NotificationChannelImportance.HIGH,
         priority: NotificationPriority.HIGH,
-        // Removido isSticky
       ),
       iosNotificationOptions: const IOSNotificationOptions(
         showNotification: true,
@@ -36,7 +32,6 @@ class ForegroundWorkoutService {
         autoRunOnBoot: true,
         allowWakeLock: true,
         allowWifiLock: true,
-        // Removido isOnceEvent
       ),
     );
   }
@@ -47,10 +42,7 @@ class ForegroundWorkoutService {
     }
 
     if (!await FlutterForegroundTask.canDrawOverlays) {
-      final isGranted = await FlutterForegroundTask.openSystemAlertWindowSettings();
-      if (!isGranted) {
-        debugPrint('System alert window permission denied');
-      }
+      await FlutterForegroundTask.openSystemAlertWindowSettings();
     }
 
     final NotificationPermission notificationPermissionStatus =
@@ -65,7 +57,7 @@ class ForegroundWorkoutService {
       callback: _foregroundTaskCallback,
     );
 
-    final isStarted = result == true;
+    final isStarted = result == ServiceRequestResult.success;
 
     if (isStarted) {
       _isRunning = true;
@@ -79,11 +71,9 @@ class ForegroundWorkoutService {
     if (!_isRunning) return true;
 
     final result = await FlutterForegroundTask.stopService();
-    final isStopped = result == true;
+    final isStopped = result == ServiceRequestResult.success;
     if (isStopped) {
       _isRunning = false;
-      _receivePort?.close();
-      _receivePort = null;
       debugPrint('Foreground workout tracking stopped');
     }
 
@@ -105,13 +95,12 @@ class ForegroundWorkoutService {
 
   bool get isRunning => _isRunning;
 
-  /// Method to be called on boot to restore any active workout
   static Future<void> onBoot() async {
     try {
       final prefs = await SharedPreferences.getInstance();
       final activity = prefs.getString('current_activity');
       final startTime = prefs.getInt('workout_start_time');
-      
+
       if (activity != null && startTime != null) {
         debugPrint('Restoring workout on boot: $activity');
         final instance = ForegroundWorkoutService();
@@ -135,8 +124,6 @@ void _foregroundTaskCallback() {
 }
 
 class _WorkoutTaskHandler extends TaskHandler {
-  int _updateCount = 0;
-
   @override
   Future<void> onStart(DateTime timestamp, TaskStarter starter) async {
     debugPrint('Workout tracking service started at $timestamp');
@@ -144,12 +131,7 @@ class _WorkoutTaskHandler extends TaskHandler {
 
   @override
   void onRepeatEvent(DateTime timestamp) {
-    _updateCount++;
     _updateWorkoutStatus();
-    FlutterForegroundTask.sendDataToMain({
-      'timestamp': timestamp.millisecondsSinceEpoch,
-      'updateCount': _updateCount,
-    });
   }
 
   @override
@@ -167,15 +149,14 @@ class _WorkoutTaskHandler extends TaskHandler {
         final elapsed = DateTime.now().millisecondsSinceEpoch - startTime;
         final elapsedDuration = Duration(milliseconds: elapsed);
 
-        await BackendService.start(activity);
+        // Use heartbeat instead of start() to keep session alive
+        await BackendService.heartbeat();
 
         final formattedTime = _formatElapsed(elapsedDuration);
         await FlutterForegroundTask.updateService(
           notificationTitle: 'GymSync - $formattedTime',
           notificationText: 'Tracking $activity workout',
         );
-
-        debugPrint('Workout status updated: $activity, elapsed: $formattedTime');
       }
     } catch (e) {
       debugPrint('Error updating workout status: $e');

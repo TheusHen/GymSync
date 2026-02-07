@@ -127,6 +127,54 @@ app.post("/api/v1/status/resume", (req, res) => {
 });
 
 /**
+ * POST /api/v1/status/heartbeat
+ * Body: { discord_id }
+ * Keeps the session alive without resetting the timer.
+ * Returns current elapsed time.
+ */
+app.post("/api/v1/status/heartbeat", (req, res) => {
+  const auth = req.headers.authorization || "";
+  const token = auth.split(" ")[1];
+
+  if (token !== API_KEY) {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
+
+  const { discord_id } = req.body;
+
+  if (!discord_id) {
+    return res.status(400).json({ error: "discord_id is required" });
+  }
+
+  const data = statusMap.get(discord_id);
+  if (!data) {
+    return res.status(404).json({ error: "No active session" });
+  }
+
+  // Update lastSeen timestamp
+  data.lastSeen = Date.now();
+  statusMap.set(discord_id, data);
+
+  if (data.paused) {
+    return res.json({
+      ok: true,
+      activity: data.activity,
+      time: data.pausedElapsed,
+      paused: true
+    });
+  } else {
+    const now = Date.now();
+    const elapsed = Math.floor((now - data.startTimestamp) / 1000) + data.pausedElapsed;
+    return res.json({
+      ok: true,
+      activity: data.activity,
+      time: elapsed,
+      paused: false
+    });
+  }
+});
+
+/**
  * POST /api/v1/status/stop
  * Body: { discord_id }
  * Remove completamente o status (stop).

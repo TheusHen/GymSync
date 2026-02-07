@@ -37,12 +37,12 @@ static const String _baseUrl = 'https://gymsync-backend-orcin.vercel.app/api/v1/
 
 ## Features
 
-- 🏋️ **Automatic Gym Detection**: Automatically starts/stops workouts when entering/leaving gym
-- 📍 **Background Location Monitoring**: Continues monitoring gym location when app is backgrounded
-- ⏱️ **Persistent Workout Tracking**: Workout timers continue running in background
-- 🎮 **Discord Integration**: Shows workout status on Discord Rich Presence
-- 📱 **Activity Recognition**: Automatically detects walking and other activities
-- 🔔 **Smart Notifications**: Workout progress notifications with pause/stop actions
+- **Automatic Gym Detection**: Automatically starts/stops workouts when entering/leaving gym
+- **Background Location Monitoring**: Continues monitoring gym location when app is backgrounded
+- **Persistent Workout Tracking**: Workout timers continue running in background
+- **Discord Integration**: Shows workout status on Discord Rich Presence
+- **Activity Recognition**: Automatically detects walking and other activities
+- **Smart Notifications**: Workout progress notifications with pause/stop actions
 
 ## Setup
 

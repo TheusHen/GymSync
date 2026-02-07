@@ -10,17 +10,11 @@ class NotificationService {
 
   final FlutterLocalNotificationsPlugin _plugin = FlutterLocalNotificationsPlugin();
   NotificationActionCallback? onAction;
-
+  bool _initialized = false;
   bool _enabled = true;
 
-  void _ensureBindingInitialized() {
-    if (WidgetsBinding.instance == null) {
-      WidgetsFlutterBinding.ensureInitialized();
-    }
-  }
-
   Future<void> init({GlobalKey<NavigatorState>? navigatorKey}) async {
-    _ensureBindingInitialized();
+    if (_initialized) return;
     const AndroidInitializationSettings android = AndroidInitializationSettings('ic_notification');
     const DarwinInitializationSettings ios = DarwinInitializationSettings();
 
@@ -34,16 +28,13 @@ class NotificationService {
         }
       },
     );
+    _initialized = true;
   }
 
   void enable(bool value) {
     _enabled = value;
     if (!value) {
-      // Cancel notifications asynchronously, ignoring platform exceptions in test environment
-      cancel().catchError((error) {
-        // Silently handle platform exceptions that occur in test environment
-        // where the platform channel implementation is not available
-      });
+      cancel().catchError((_) {});
     }
   }
 
@@ -54,7 +45,7 @@ class NotificationService {
     required String activity,
   }) async {
     if (!_enabled) return;
-    _ensureBindingInitialized();
+    if (!_initialized) await init();
     final android = AndroidNotificationDetails(
       'persistent_gym_channel',
       'Persistent Gym',
@@ -92,7 +83,7 @@ class NotificationService {
   }
 
   Future<void> cancel() async {
-    _ensureBindingInitialized();
+    if (!_initialized) return;
     await _plugin.cancel(1);
   }
 }
