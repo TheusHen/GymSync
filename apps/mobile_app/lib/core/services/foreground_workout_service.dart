@@ -57,7 +57,7 @@ class ForegroundWorkoutService {
       callback: _foregroundTaskCallback,
     );
 
-    final isStarted = result == ServiceRequestResult.success;
+    final isStarted = result == true;
 
     if (isStarted) {
       _isRunning = true;
@@ -71,7 +71,7 @@ class ForegroundWorkoutService {
     if (!_isRunning) return true;
 
     final result = await FlutterForegroundTask.stopService();
-    final isStopped = result == ServiceRequestResult.success;
+    final isStopped = result == true;
     if (isStopped) {
       _isRunning = false;
       debugPrint('Foreground workout tracking stopped');

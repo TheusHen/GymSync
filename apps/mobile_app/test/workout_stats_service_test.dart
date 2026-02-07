@@ -150,7 +150,7 @@ void main() {
       expect(wrapped.year, year);
       expect(wrapped.totalWorkouts, 4);
       expect(wrapped.totalDuration.inMinutes, 255); // 60+45+120+30
-      expect(wrapped.favoriteActivity, 'Cycling'); // Most time
+      expect(wrapped.favoriteActivity, 'Running'); // Most time (135 min vs 120 min)
       expect(wrapped.activityBreakdown.length, 2);
       expect(wrapped.dailyBreakdown.length, 4);
       expect(
@@ -336,7 +336,7 @@ void main() {
         'year': 2026,
         'month': 2,
         'day': 7,
-        'weekday': 5,
+        'weekday': 6,
       };
 
       final stats = WorkoutStats.fromJson(json);
@@ -344,7 +344,7 @@ void main() {
       expect(stats.activityType, 'Running');
       expect(stats.duration.inMinutes, 30);
       expect(stats.year, 2026);
-      expect(stats.weekday, 5); // Friday
+      expect(stats.weekday, 6); // Saturday
     });
 
     test('Convert WorkoutStats to JSON', () {

@@ -95,10 +95,8 @@ class _BackgroundHandler {
       Position? position;
       try {
         position = await Geolocator.getCurrentPosition(
-          locationSettings: const LocationSettings(
-            accuracy: LocationAccuracy.low,
-            timeLimit: Duration(seconds: 30),
-          ),
+          desiredAccuracy: LocationAccuracy.low,
+          timeLimit: const Duration(seconds: 30),
         );
       } catch (e) {
         position = await Geolocator.getLastKnownPosition();
@@ -106,6 +104,11 @@ class _BackgroundHandler {
           debugPrint('Could not get location: $e');
           return;
         }
+      }
+
+      if (position == null) {
+        debugPrint('Position is null after getCurrentPosition');
+        return;
       }
 
       final Distance distance = Distance();
